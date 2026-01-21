@@ -149,13 +149,13 @@ export default function UserDashboard() {
       </header>
 
       {/* Main Content Grid */}
-      <main className="flex-1 px-6 pb-20 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto w-full">
+      <main className="flex-1 px-6 overflow-hidden grid grid-cols-1 lg:grid-cols-2 gap-6 w-full h-full">
         
         {/* Left Column */}
-        <div className="space-y-6">
+        <div className="h-full flex flex-col space-y-6">
           
           {/* 2. Announcements */}
-          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+          <section className="flex-1 bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
             <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2">
               <Megaphone className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Announcements</h2>
@@ -178,7 +178,7 @@ export default function UserDashboard() {
           </section>
 
           {/* 2.5 Daily Schedule & Reminders */}
-          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+          <section className="flex-none bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
             <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2">
               <Clock className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Today’s Schedule</h2>
@@ -201,7 +201,7 @@ export default function UserDashboard() {
           </section>
 
           {/* 3. Upcoming Events (List View) */}
-           <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+           <section className="flex-[0.6] bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
             <div className="bg-[#7CA99B] px-4 py-3 flex items-center space-x-2">
               <Calendar className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Upcoming Events</h2>
@@ -229,9 +229,9 @@ export default function UserDashboard() {
         </div>
 
         {/* Right Column */}
-        <div className="space-y-6">
+        <div className="h-full flex flex-col space-y-6">
            {/* More Events / Grid */}
-           <div className="grid grid-cols-1 gap-4">
+           <div className="flex-1 grid grid-cols-1 gap-4 overflow-hidden">
               {data.events.slice(1).map((evt) => (
                   <div key={evt.id} className="bg-white rounded-2xl shadow-sm p-4 flex space-x-4">
                      <div className="w-1/3 h-24 bg-gray-200 rounded-lg flex-shrink-0 bg-cover bg-center" style={{backgroundImage: `url('https://placehold.co/400x400?text=${evt.title}')`}}></div>
@@ -245,12 +245,12 @@ export default function UserDashboard() {
            </div>
 
            {/* 4. QR Code / Scan for Updates */}
-           <div className="bg-[#F0F4F1] rounded-2xl p-6 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#7CA99B]">
+           <div className="flex-1 bg-[#F0F4F1] rounded-2xl p-6 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#7CA99B]">
               <h3 className="font-bold text-gray-800 text-lg mb-2">Scan for Updates</h3>
               <div className="bg-white p-2 rounded-lg shadow-sm mb-3">
                  <QrCode size={120} className="text-gray-800" />
               </div>
-              <button onClick={startVoice} className="bg-[#7CA99B] text.white px-6 py-2 rounded-full font-bold shadow-sm hover:bg-[#6B9688] transition">
+              <button onClick={startVoice} className="bg-[#7CA99B] text-white px-6 py-2 rounded-full font-bold shadow-sm hover:bg-[#6B9688] transition">
                  Voice Control
               </button>
            </div>
@@ -279,10 +279,10 @@ export default function UserDashboard() {
       </footer>
 
       {overlayOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items.center justify.center z-50">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-lg">
             <div className="font-bold mb-2">Voice Input</div>
-            <div className="text-sm text.gray-600 mb-2">{voiceText || "Listening..."}</div>
+            <div className="text-sm text-gray-600 mb-2">{voiceText || "Listening..."}</div>
             <div className="space-y-2 max-h-64 overflow-auto">
               {overlayResults.map((r, i) => (<div key={i} className="p-2 border rounded text-sm">{r}</div>))}
             </div>
