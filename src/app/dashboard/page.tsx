@@ -49,9 +49,9 @@ export default function UserDashboard() {
     announcements: Announcement[];
     events: Event[];
     ticker: string;
-    schedule?: Schedule | null;
+    schedules?: Schedule[];
     media?: MediaItem | null;
-  }>({ announcements: [], events: [], ticker: "", schedule: null, media: null });
+  }>({ announcements: [], events: [], ticker: "", schedules: [], media: null });
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [voiceText, setVoiceText] = useState("");
   const [overlayResults, setOverlayResults] = useState<string[]>([]);
@@ -82,9 +82,10 @@ export default function UserDashboard() {
     const unsubSchedules = onSnapshot(collection(db, "schedules"), (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
       const today = new Date().toISOString().slice(0,10);
-      const upcoming = list.filter((s:any) => s.visible !== false && s.date >= today).sort((a:any,b:any)=> a.date.localeCompare(b.date) || (a.time||"").localeCompare(b.time||""));
-      const nearest = upcoming[0] || null;
-      setData((prev) => ({ ...prev, schedule: nearest }));
+      const upcoming = list
+        .filter((s:any) => s.visible !== false && s.date >= today)
+        .sort((a:any,b:any)=> a.date.localeCompare(b.date) || (a.time||"").localeCompare(b.time||""));
+      setData((prev) => ({ ...prev, schedules: upcoming.slice(0,3) }));
     });
     const unsubMedia = onSnapshot(collection(db, "media"), (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
@@ -162,7 +163,7 @@ export default function UserDashboard() {
       </header>
 
       {/* Main Content Grid */}
-      <main className="px-6 pb-3 overflow-hidden grid grid-cols-2 grid-rows-2 gap-6 w-full h-[85vh]" style={{gridTemplateRows: '70% 30%'}}>
+      <main className="px-6 pb-2 overflow-hidden grid grid-cols-2 grid-rows-2 gap-6 w-full" style={{height: 'calc(100vh - 15vh)', gridTemplateRows: '70% 30%'}}>
         
         {/* Left Column */}
         <div className="grid gap-6 h-full" style={{gridTemplateRows: '70% 30%'}}>
@@ -178,10 +179,10 @@ export default function UserDashboard() {
                 const ann = data.announcements[i];
                 return ann ? (
                   <div key={ann.id} className="bg-[#FFF8E7] rounded-xl p-3 flex items-start space-x-3 border-l-4 border-[#E6B800]">
-                    {ann.type === 'flag' ? <Flag className="text-[#E6B800] mt-1" /> : <Clock className="text-[#6B8EAD] mt-1" />}
+                    {ann.type === 'flag' ? <Flag style={{width:'clamp(16px,2vw,22px)',height:'clamp(16px,2vw,22px)'}} className="text-[#E6B800] mt-1" /> : <Clock style={{width:'clamp(16px,2vw,22px)',height:'clamp(16px,2vw,22px)'}} className="text-[#6B8EAD] mt-1" />}
                     <div>
-                      <h3 className="font-bold text-gray-800 text-base">{ann.title}</h3>
-                      <p className="text-gray-600 text-sm">{ann.time} • {ann.date}</p>
+                      <h3 className="font-bold text-gray-800 text-[clamp(14px,1.5vw,18px)]">{ann.title}</h3>
+                      <p className="text-gray-600 text-[clamp(12px,1.2vw,14px)]">{ann.time} • {ann.date}</p>
                     </div>
                   </div>
                 ) : (
@@ -192,25 +193,28 @@ export default function UserDashboard() {
           </section>
 
           {/* 2.5 Daily Schedule & Reminders */}
-          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 lg:row-start-2 lg:col-start-1">
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full">
             <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2">
-              <Clock className="text-white" size={24} />
+              <Clock style={{width:'clamp(18px,2.4vw,26px)',height:'clamp(18px,2.4vw,26px)'}} className="text-white" />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Today’s Schedule</h2>
             </div>
-            <div className="p-3">
-              {!data.schedule ? (
-                <p className="text-gray-500 text-center py-2">No schedule today.</p>
-              ) : (
-              <div className="bg-[#FFF8E7] rounded-xl p-3 border-l-4 border-[#E6B800]">
-                  <div className="flex items-center space-x-3">
-                    <Clock className="text-[#6B8EAD]" />
-                    <div>
-                      <div className="font-bold text-gray-800">{data.schedule.title}</div>
-                      <div className="text-gray-600 text-sm">{data.schedule.time} • {data.schedule.date}</div>
+            <div className="p-3 space-y-2">
+              {Array.from({length:3}).map((_, i) => {
+                const sch = (data.schedules || [])[i];
+                return sch ? (
+                  <div key={sch.id} className="bg-[#FFF8E7] rounded-xl p-3 border-l-4 border-[#E6B800]">
+                    <div className="flex items-center space-x-3">
+                      <Clock style={{width:'clamp(16px,2vw,22px)',height:'clamp(16px,2vw,22px)'}} className="text-[#6B8EAD]" />
+                      <div>
+                        <div className="font-bold text-gray-800 text-[clamp(14px,1.5vw,18px)]">{sch.title}</div>
+                        <div className="text-gray-600 text-[clamp(12px,1.2vw,14px)]">{sch.time} • {sch.date}</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div key={`sch-ph-${i}`} className="bg-[#FFF8E7] rounded-xl p-6 border-l-4 border-[#E6B800] flex items-center justify-center text-gray-400">Schedule Placeholder</div>
+                );
+              })}
             </div>
           </section>
 
@@ -223,19 +227,19 @@ export default function UserDashboard() {
           {/* Upper Right: Upcoming Events (Top 3) */}
           <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full">
             <div className="bg-[#7CA99B] px-4 py-3 flex items-center space-x-2">
-              <Calendar className="text-white" size={24} />
+              <Calendar style={{width:'clamp(18px,2.4vw,26px)',height:'clamp(18px,2.4vw,26px)'}} className="text-white" />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Upcoming Events</h2>
             </div>
             <div className="p-3 space-y-3">
-              {Array.from({length:3}).map((_, i) => {
-                const evt = data.events[i];
+              {(() => {
+                const evt = data.events[0];
                 return evt ? (
                   <div key={evt.id} className="bg-[#EBF5F8] rounded-xl p-3">
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-bold text-gray-800 text-base">{evt.title}</h3>
-                      <span className="text-[#6B8EAD] font-medium text-xs">{evt.date}</span>
+                      <h3 className="font-bold text-gray-800 text-[clamp(14px,1.5vw,18px)]">{evt.title}</h3>
+                      <span className="text-[#6B8EAD] font-medium text-[clamp(12px,1.2vw,14px)]">{evt.date}</span>
                     </div>
-                    <div className="h-24 bg-gray-200 rounded-lg mb-2 flex items-center justify-center text-gray-400">
+                    <div className="h-[clamp(96px,12vh,140px)] bg-gray-200 rounded-lg mb-2 flex items-center justify-center text-gray-400">
                       {evt.image ? (
                         <div className="w-full h-full bg-cover bg-center rounded-lg" style={{backgroundImage: `url('${evt.image}')`}}></div>
                       ) : (
@@ -244,9 +248,9 @@ export default function UserDashboard() {
                     </div>
                   </div>
                 ) : (
-              <div key={`evt-ph-${i}`} className="bg-[#EBF5F8] rounded-xl p-6 flex items-center justify-center text-gray-400">Event Placeholder</div>
+                  <div className="bg-[#EBF5F8] rounded-xl p-6 flex items-center justify-center text-gray-400">Event Placeholder</div>
                 );
-              })}
+              })()}
             </div>
           </section>
 
