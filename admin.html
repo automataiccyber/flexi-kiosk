@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flexi Kiosk - Admin</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body id="admin-view">
+  <div class="admin-container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <h1>Admin Dashboard</h1>
+      <a href="index.html" style="color:red; text-decoration:none;">Logout</a>
+    </div>
+    
+    <div class="admin-section">
+      <div class="form-group">
+        <label>Ticker Message</label>
+        <input type="text" id="ticker-input">
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <div class="form-group">
+        <label>Announcements (JSON)</label>
+        <textarea id="announcements-input" rows="5"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Upcoming Events (JSON)</label>
+        <textarea id="events-input" rows="5"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Daily Schedule (JSON)</label>
+        <textarea id="schedule-input" rows="5"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Media / Highlight (JSON)</label>
+        <textarea id="media-input" rows="3"></textarea>
+      </div>
+      <button id="save-btn" class="btn-save">Save Settings</button>
+    </div>
+    
+    <div style="text-align: center; margin-top: 2rem;">
+      <a href="dashboard.html" style="color: var(--primary-blue); text-decoration: none;">View Dashboard &rarr;</a>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>

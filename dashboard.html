@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flexi Kiosk - Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body id="dashboard-view">
+  <div class="dashboard-wrapper">
+    <!-- Header: Time & Date -->
+    <header>
+      <div class="time-display text-center">
+        <h1 id="time">--:-- --</h1>
+        <div id="date" class="date-display">-- --, ----</div>
+      </div>
+      <div class="weather-widget">
+        <div style="font-size: 2rem; color: #f6ad55;">☀️</div>
+        <div style="font-weight: bold; font-size: 1.2rem;">28°C</div>
+        <div style="font-size: 0.9rem; color: #718096;">31°C / 24°C</div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+      <!-- Left Column: Announcements (7fr) & Schedule (3fr) -->
+      <div class="column">
+        <section class="card">
+          <div class="card-header header-blue">
+            <span>📢</span> ANNOUNCEMENTS
+          </div>
+          <div class="card-body" id="announcements-list">
+            <!-- Dynamic Content -->
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header header-blue">
+            <span>⏰</span> DAILY SCHEDULE
+          </div>
+          <div class="card-body" id="schedule-list">
+            <!-- Dynamic Content -->
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: Events (7fr) & Media (3fr) -->
+      <div class="column">
+        <section class="card">
+          <div class="card-header header-green">
+            <span>📅</span> UPCOMING EVENTS
+          </div>
+          <div class="card-body" id="events-list">
+            <!-- Dynamic Content -->
+          </div>
+        </section>
+
+        <section class="media-container" id="media-content">
+          <!-- Dynamic Content -->
+        </section>
+      </div>
+    </main>
+
+    <!-- Footer: Ticker -->
+    <footer>
+      <div class="live-indicator">
+        <div class="dot"></div>
+        LIVE
+      </div>
+      <div class="ticker-wrap">
+        <div class="ticker-move" id="ticker-text">Loading ticker message...</div>
+      </div>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 20px;">
+        <span style="font-size: 0.8rem;">🎤</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
