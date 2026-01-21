@@ -171,6 +171,27 @@ async function fetchRooms() {
   return snap.docs.map(d => d.data());
 }
 
+async function fetchConfig(name) {
+  const db = getFirestoreDB();
+  if (!db) {
+    const data = getData();
+    if (name === 'ticker') return { text: data.ticker };
+    if (name === 'media') return data.media;
+    return null;
+  }
+  const doc = await db.collection('config').doc(name).get();
+  return doc.exists ? doc.data() : null;
+}
+
+async function fileToDataURL(file) {
+  if (!file) return null;
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
+
 // --- Time & Date ---
 function updateTime() {
   const now = new Date();
@@ -227,18 +248,20 @@ async function renderDashboard() {
   // Render Media/Highlight
   const mediaContainer = document.getElementById('media-content');
   if (mediaContainer) {
-    if (data.media.type === 'qr') {
+    const mediaCfg = await fetchConfig('media');
+    const mediaData = mediaCfg || data.media;
+    if (mediaData.type === 'qr') {
       mediaContainer.innerHTML = `
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(data.media.value || 'FlexiSystem')}" class="qr-code" alt="QR">
-        <p style="margin-top:10px; font-weight:bold;">${data.media.value}</p>
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(mediaData.value || 'FlexiSystem')}" class="qr-code" alt="QR">
+        <p style="margin-top:10px; font-weight:bold;">${mediaData.value}</p>
       `;
-    } else if (data.media.type === 'quote') {
+    } else if (mediaData.type === 'quote') {
       mediaContainer.innerHTML = `
-        <div style="font-size:1.2rem; font-weight:bold;">“${data.media.value}”</div>
+        <div style="font-size:1.2rem; font-weight:bold;">“${mediaData.value}”</div>
       `;
     } else {
       mediaContainer.innerHTML = `
-        <div style="width:100%; height:100%; background-image:url('${data.media.value}'); background-size:cover; background-position:center; border-radius:8px;"></div>
+        <div style="width:100%; height:100%; background-image:url('${mediaData.value}'); background-size:cover; background-position:center; border-radius:8px;"></div>
       `;
     }
   }
@@ -246,7 +269,8 @@ async function renderDashboard() {
   // Render Ticker
   const tickerEl = document.getElementById('ticker-text');
   if (tickerEl) {
-    tickerEl.textContent = data.ticker;
+    const t = await fetchConfig('ticker');
+    tickerEl.textContent = (t && t.text) || data.ticker;
   }
 }
 
@@ -342,8 +366,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const fileEl = document.getElementById('event-image-file');
       const file = fileEl && fileEl.files && fileEl.files[0];
       if (!title || !date || !file) return;
-      const url = await uploadImage(file, 'events');
-      if (!url) return;
+      let url = await uploadImage(file, 'events');
+      if (!url) {
+        url = await fileToDataURL(file);
+      }
       await addEvent(title, date, url);
       if (document.getElementById('events-admin-list')) {
         const evsAll = await fetchEvents(50);
