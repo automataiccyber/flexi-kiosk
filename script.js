@@ -221,7 +221,7 @@ async function fileToDataURL(file) {
   });
 }
 
-async function compressImageToDataURL(file, maxWidth = 1280, quality = 0.75) {
+async function compressImageToDataURL(file, maxWidth = 800, quality = 0.7) {
   if (!file) return null;
   const dataUrl = await fileToDataURL(file);
   return new Promise((resolve) => {
@@ -414,10 +414,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const fileEl = document.getElementById('event-image-file');
       const file = fileEl && fileEl.files && fileEl.files[0];
       if (!title || !date || !file) return;
-      let url = await uploadImage(file, 'events');
-      if (!url) {
-        url = await compressImageToDataURL(file);
-      }
+      const url = await compressImageToDataURL(file);
+      if (!url) return;
       await addEvent(title, date, url);
       if (document.getElementById('events-admin-list')) {
         const evsAll = await fetchEvents(50);
@@ -477,21 +475,12 @@ document.addEventListener('DOMContentLoaded', () => {
             laboratory: document.getElementById('laboratory-status').value
           }
         };
-        if (newData.media.type === 'image') {
-          const mfileEl = document.getElementById('media-image-file');
-          const mfile = mfileEl && mfileEl.files && mfileEl.files[0];
-          if (mfile) {
-            const url = await uploadImage(mfile, 'media');
-            if (url) newData.media.value = url; else newData.media.value = await compressImageToDataURL(mfile);
-          }
-        } else {
-          const mfileEl = document.getElementById('media-image-file');
-          const mfile = mfileEl && mfileEl.files && mfileEl.files[0];
-          if (mfile) {
-            newData.media.type = 'image';
-            const url = await uploadImage(mfile, 'media');
-            newData.media.value = url || (await compressImageToDataURL(mfile));
-          }
+        const mfileEl = document.getElementById('media-image-file');
+        const mfile = mfileEl && mfileEl.files && mfileEl.files[0];
+        if (mfile) {
+          newData.media.type = 'image';
+          const url = await compressImageToDataURL(mfile);
+          if (url) newData.media.value = url;
         }
         await saveConfigDocs(newData);
         alert('Settings Saved');
