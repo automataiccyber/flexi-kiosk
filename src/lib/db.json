@@ -1,0 +1,42 @@
+{
+  "announcements": [
+    {
+      "id": "1",
+      "title": "Flag Ceremony",
+      "date": "2026-02-20",
+      "time": "7:00 AM",
+      "type": "flag"
+    },
+    {
+      "id": "2",
+      "title": "Student Council Meeting",
+      "date": "2026-02-20",
+      "time": "10:00 AM",
+      "type": "meeting"
+    },
+    {
+      "id": "1768960217629",
+      "title": "Test Announcement",
+      "date": "2026-01-01",
+      "time": "12:00 PM",
+      "type": "general"
+    }
+  ],
+  "events": [
+    {
+      "id": "1",
+      "title": "Science Fair",
+      "date": "March 1, 2026",
+      "image": "/science-fair.jpg",
+      "description": "Annual Science Fair"
+    },
+    {
+      "id": "2",
+      "title": "Lost & Found",
+      "date": "Ongoing",
+      "image": "/lost-found.jpg",
+      "description": "Please claim lost items at the school office."
+    }
+  ],
+  "ticker": "Updated Ticker Message via Verification Script"
+}
