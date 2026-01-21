@@ -243,7 +243,7 @@ function showOverlay(title, html) {
   c.innerHTML = html;
   overlay.style.display = 'flex';
   clearTimeout(window._voiceHideTimer);
-  window._voiceHideTimer = setTimeout(() => { overlay.style.display = 'none'; }, 8000);
+  window._voiceHideTimer = setTimeout(() => { overlay.style.display = 'none'; }, 12000);
 }
 
 function hideOverlay() {
@@ -341,12 +341,17 @@ async function handleVoice(text) {
     let evs = evsAll;
     if (range) {
       const inRange = (e) => {
-        const d = new Date(e.date);
+        const dstr = (e.date || '').replace(/\,/g,'');
+        const d = new Date(dstr);
         return d >= range.from && d <= range.to;
       };
       evs = evsAll.filter(inRange);
     }
-    if (evs.length === 0) return showOverlay('Upcoming Events', '<div>No events found for the requested period.</div>');
+    if (evs.length === 0) {
+      const fallback = evsAll.slice(0,6);
+      if (fallback.length === 0) return showOverlay('Upcoming Events', '<div>No events found.</div>');
+      return showOverlay('Upcoming Events', fallback.map(e => `<div><b>${e.title}</b> — ${e.date}</div>`).join(''));
+    }
     return showOverlay('Upcoming Events', evs.slice(0,6).map(e => `<div><b>${e.title}</b> — ${e.date}</div>`).join(''));
   }
 
@@ -503,6 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let recog = null;
     let backoff = 600;
     let listening = false;
+    let sessionDeadline = 0;
     const mic = document.getElementById('voice-mic');
     let voiceBuf = '';
     let voiceTimer = null;
@@ -533,7 +539,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }, hasCmd ? 400 : 1500);
           }
         };
-        recog.onend = () => { listening = false; };
+        recog.onend = () => {
+          if (listening && Date.now() < sessionDeadline) {
+            setTimeout(() => { try { recog.start(); } catch {} }, 400);
+          } else {
+            listening = false;
+          }
+        };
         recog.onerror = () => { showOverlay('Voice Control', '<div>Microphone error. Please check browser permissions.</div>'); };
       }
       try {
@@ -543,6 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch {}
       listening = true;
       backoff = 600;
+      sessionDeadline = Date.now() + 15000;
       voiceBuf = '';
       try { recog.start(); showOverlay('Listening…', '<div>Say: “Hey Flexi, show upcoming events this week”.</div>'); } catch {}
     };
