@@ -141,10 +141,10 @@ export default function UserDashboard() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#F5F5F0] overflow-hidden font-sans text-gray-800">
-      
+    <div className="flex flex-col h-[100dvh] bg-[#F5F5F0] overflow-hidden overscroll-none font-sans text-gray-800">
+
       {/* 1. Header: Time, Date, Weather */}
-      <header className="flex flex-col items-center justify-center bg-[#F5F5F0]" style={{height: '10vh'}}>
+      <header className="h-[10vh] flex items-center justify-center flex-shrink-0">
         <div className="flex items-center space-x-4">
           <div className="text-center">
             <h1 className="text-6xl font-bold text-gray-800 tracking-tight">
@@ -163,18 +163,18 @@ export default function UserDashboard() {
       </header>
 
       {/* Main Content Grid */}
-      <main className="px-6 overflow-hidden grid grid-cols-2 grid-rows-2 gap-6 w-full" style={{height: 'calc(100vh - 10vh)', gridTemplateRows: '70% 30%', paddingBottom: '6vh'}}>
-        
+      <main className="flex-1 px-6 pb-6 overflow-hidden grid grid-cols-2 gap-6 w-full min-h-0">
+
         {/* Left Column */}
-        <div className="grid gap-6 h-full" style={{gridTemplateRows: '70% 30%'}}>
+        <div className="grid gap-6 h-full grid-rows-[7fr_3fr]">
           
           {/* 2. Announcements */}
-          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 lg:row-start-1 lg:col-start-1 h-full">
-            <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2">
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full flex flex-col">
+            <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2 flex-shrink-0">
               <Megaphone className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Announcements</h2>
             </div>
-            <div className="p-3 space-y-2">
+            <div className="p-3 space-y-2 flex-1 overflow-y-auto">
               {Array.from({length:3}).map((_, i) => {
                 const ann = data.announcements[i];
                 return ann ? (
@@ -193,12 +193,12 @@ export default function UserDashboard() {
           </section>
 
           {/* 2.5 Daily Schedule & Reminders */}
-          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full">
-            <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2">
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full flex flex-col">
+            <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2 flex-shrink-0">
               <Clock style={{width:'clamp(18px,2.4vw,26px)',height:'clamp(18px,2.4vw,26px)'}} className="text-white" />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Today’s Schedule</h2>
             </div>
-            <div className="p-3 space-y-2">
+            <div className="p-3 space-y-2 flex-1 overflow-y-auto">
               {Array.from({length:3}).map((_, i) => {
                 const sch = (data.schedules || [])[i];
                 return sch ? (
@@ -218,19 +218,17 @@ export default function UserDashboard() {
             </div>
           </section>
 
-          {/* 3. Upcoming Events moved to right column */}
-
         </div>
 
         {/* Right Column */}
-        <div className="grid gap-6 h-full" style={{gridTemplateRows: '50% 50%'}}>
+        <div className="grid gap-6 h-full grid-rows-[1fr_1fr]">
           {/* Upper Right: Upcoming Events (Top 3) */}
-          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full">
-            <div className="bg-[#7CA99B] px-4 py-3 flex items-center space-x-2">
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full flex flex-col">
+            <div className="bg-[#7CA99B] px-4 py-3 flex items-center space-x-2 flex-shrink-0">
               <Calendar style={{width:'clamp(18px,2.4vw,26px)',height:'clamp(18px,2.4vw,26px)'}} className="text-white" />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Upcoming Events</h2>
             </div>
-            <div className="p-3 space-y-3">
+            <div className="p-3 space-y-3 flex-1 overflow-y-auto">
               {(() => {
                 const evt = data.events[0];
                 return evt ? (
@@ -284,7 +282,7 @@ export default function UserDashboard() {
       </main>
 
       {/* 5. Scrolling Ticker / Footer */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-[#2D3748] text-white h-[5vh] flex items-center px-6 pt-1 z-50 shadow-lg">
+      <footer className="bg-[#2D3748] text-white h-[5vh] flex items-center px-6 pt-1 z-50 shadow-lg flex-shrink-0">
         <div className="flex items-center space-x-2 mr-4 flex-shrink-0">
            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
            <span className="font-bold text-sm uppercase tracking-wider text-gray-300">Live</span>
