@@ -143,7 +143,7 @@ export default function UserDashboard() {
     <div className="flex flex-col h-screen bg-[#F5F5F0] overflow-hidden font-sans text-gray-800">
       
       {/* 1. Header: Time, Date, Weather */}
-      <header className="flex flex-col items-center justify-center py-6 bg-[#F5F5F0]">
+      <header className="flex flex-col items-center justify-center bg-[#F5F5F0]" style={{height: '10vh'}}>
         <div className="flex items-center space-x-4">
           <div className="text-center">
             <h1 className="text-6xl font-bold text-gray-800 tracking-tight">
@@ -162,22 +162,21 @@ export default function UserDashboard() {
       </header>
 
       {/* Main Content Grid */}
-      <main className="flex-1 px-6 overflow-hidden grid grid-cols-1 lg:grid-cols-2 gap-6 w-full h-full">
+      <main className="px-6 py-2 overflow-hidden grid grid-cols-2 grid-rows-2 gap-6 w-full h-[85vh]" style={{gridTemplateRows: '70% 30%'}}>
         
         {/* Left Column */}
-        <div className="contents">
+        <div className="grid gap-6 h-full" style={{gridTemplateRows: '70% 30%'}}>
           
           {/* 2. Announcements */}
-          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 lg:row-start-1 lg:col-start-1">
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 lg:row-start-1 lg:col-start-1 h-full">
             <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2">
               <Megaphone className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Announcements</h2>
             </div>
             <div className="p-4 space-y-3">
-              {data.announcements.length === 0 ? (
-                 <p className="text-gray-500 text-center py-4">No announcements today.</p>
-              ) : (
-                data.announcements.slice(0,3).map((ann) => (
+              {Array.from({length:3}).map((_, i) => {
+                const ann = data.announcements[i];
+                return ann ? (
                   <div key={ann.id} className="bg-[#FFF8E7] rounded-xl p-4 flex items-start space-x-3 border-l-4 border-[#E6B800]">
                     {ann.type === 'flag' ? <Flag className="text-[#E6B800] mt-1" /> : <Clock className="text-[#6B8EAD] mt-1" />}
                     <div>
@@ -185,8 +184,10 @@ export default function UserDashboard() {
                       <p className="text-gray-600 text-sm">{ann.time} • {ann.date}</p>
                     </div>
                   </div>
-                ))
-              )}
+                ) : (
+                  <div key={`ann-ph-${i}`} className="bg-[#FFF8E7] rounded-xl p-6 border-l-4 border-[#E6B800] flex items-center justify-center text-gray-400">Announcement Placeholder</div>
+                );
+              })}
             </div>
           </section>
 
@@ -214,35 +215,39 @@ export default function UserDashboard() {
           </section>
 
           {/* 3. Upcoming Events (List View) */}
-           <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 lg:row-start-1 lg:col-start-2">
+           <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 lg:row-start-1 lg:col-start-2 h-full">
             <div className="bg-[#7CA99B] px-4 py-3 flex items-center space-x-2">
               <Calendar className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Upcoming Events</h2>
             </div>
             <div className="p-4 space-y-4">
-               {data.events.slice(0, 3).map((evt) => (
-                  <div key={evt.id} className="bg-[#EBF5F8] rounded-xl p-4 flex flex-col">
-                     <div className="flex justify-between items-start mb-2">
-                       <h3 className="font-bold text-gray-800 text-xl">{evt.title}</h3>
-                       <span className="text-[#6B8EAD] font-medium text-sm">{evt.date}</span>
-                     </div>
-                     <div className="h-32 bg-gray-200 rounded-lg mb-2 flex items-center justify-center text-gray-400">
-                        {/* Placeholder for actual image */}
-                        {evt.image ? (
-                           <div className="w-full h-full bg-cover bg-center rounded-lg" style={{backgroundImage: `url('${evt.image}')`}}></div>
-                        ) : (
-                           <span>Image</span>
-                        )}
-                     </div>
+              {Array.from({length:3}).map((_, i) => {
+                const evt = data.events[i];
+                return evt ? (
+                  <div key={evt.id} className="bg-[#EBF5F8] rounded-xl p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-bold text-gray-800 text-xl">{evt.title}</h3>
+                      <span className="text-[#6B8EAD] font-medium text-sm">{evt.date}</span>
+                    </div>
+                    <div className="h-28 bg-gray-200 rounded-lg mb-2 flex items-center justify-center text-gray-400">
+                      {evt.image ? (
+                        <div className="w-full h-full bg-cover bg-center rounded-lg" style={{backgroundImage: `url('${evt.image}')`}}></div>
+                      ) : (
+                        <span>Image</span>
+                      )}
+                    </div>
                   </div>
-               ))}
+                ) : (
+                  <div key={`evt-ph-${i}`} className="bg-[#EBF5F8] rounded-xl p-6 flex items-center justify-center text-gray-400">Event Placeholder</div>
+                );
+              })}
             </div>
           </section>
 
         </div>
 
         {/* Right Column */}
-        <div className="contents">
+        <div className="grid gap-6 h-full" style={{gridTemplateRows: '50% 50%'}}>
            {/* More Events / Grid */}
            <div className="flex-1 grid grid-cols-1 gap-4 overflow-hidden hidden">
               {data.events.slice(1).map((evt) => (
@@ -258,7 +263,7 @@ export default function UserDashboard() {
            </div>
 
            {/* 4. Media Highlights */}
-           <div className="bg-[#F0F4F1] rounded-2xl p-6 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#7CA99B] lg:row-start-2 lg:col-start-2">
+           <div className="bg-[#F0F4F1] rounded-2xl p-6 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#7CA99B] h-full">
               <h3 className="font-bold text-gray-800 text-lg mb-2">Media Highlights</h3>
               {data.events.length === 0 && !data.ticker ? null : null}
               {data.media ? (
@@ -287,7 +292,7 @@ export default function UserDashboard() {
       </main>
 
       {/* 5. Scrolling Ticker / Footer */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-[#2D3748] text-white h-16 flex items-center px-4 z-50 shadow-lg">
+      <footer className="fixed bottom-0 left-0 right-0 bg-[#2D3748] text-white h-[5vh] flex items-center px-6 z-50 shadow-lg">
         <div className="flex items-center space-x-2 mr-4 flex-shrink-0">
            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
            <span className="font-bold text-sm uppercase tracking-wider text-gray-300">Live</span>
