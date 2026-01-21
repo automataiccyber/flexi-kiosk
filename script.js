@@ -234,6 +234,135 @@ function updateTime() {
   }
 }
 
+function showOverlay(title, html) {
+  const overlay = document.getElementById('voice-overlay');
+  const t = document.getElementById('voice-title');
+  const c = document.getElementById('voice-content');
+  if (!overlay || !t || !c) return;
+  t.textContent = title;
+  c.innerHTML = html;
+  overlay.style.display = 'flex';
+  clearTimeout(window._voiceHideTimer);
+  window._voiceHideTimer = setTimeout(() => { overlay.style.display = 'none'; }, 8000);
+}
+
+function hideOverlay() {
+  const overlay = document.getElementById('voice-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function normalizeText(s) {
+  return (s || '').toLowerCase().replace(/[\.,!?]/g, '').trim();
+}
+
+function parseDate(text) {
+  const now = new Date();
+  const n = normalizeText(text);
+  if (n.includes('today')) return { from: new Date(now.setHours(0,0,0,0)), to: new Date(now.setHours(23,59,59,999)) };
+  if (n.includes('tomorrow')) {
+    const d = new Date(); d.setDate(d.getDate()+1);
+    return { from: new Date(d.setHours(0,0,0,0)), to: new Date(d.setHours(23,59,59,999)) };
+  }
+  if (n.includes('this week')) {
+    const d = new Date();
+    const day = d.getDay();
+    const diffToMonday = (day+6)%7; // 0=Sunday
+    const monday = new Date(d); monday.setDate(d.getDate()-diffToMonday); monday.setHours(0,0,0,0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+    return { from: monday, to: sunday };
+  }
+  const m = n.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})(?:\s*(\d{4}))?/);
+  if (m) {
+    const monthNames = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const month = monthNames.indexOf(m[1]);
+    const day = parseInt(m[2],10);
+    const year = m[3] ? parseInt(m[3],10) : new Date().getFullYear();
+    const d = new Date(year, month, day, 0,0,0,0);
+    const e = new Date(year, month, day, 23,59,59,999);
+    return { from: d, to: e };
+  }
+  const range = n.match(/from\s+([a-z]+\s+\d{1,2})(?:\s*(\d{4}))?\s+to\s+([a-z]+\s+\d{1,2})(?:\s*(\d{4}))?/);
+  if (range) {
+    const parsePart = (p, y) => parseDate(p + ' ' + (y || ''));
+    const a = parsePart(range[1], range[2]);
+    const b = parsePart(range[3], range[4]);
+    if (a && b) return { from: a.from, to: b.to };
+  }
+  return null;
+}
+
+async function handleVoice(text) {
+  const q = normalizeText(text);
+  const data = getData();
+  const prefix = 'hey flexi';
+  const t = q.startsWith(prefix) ? q.replace(prefix, '').trim() : q;
+
+  if (/^(show|open)\s+(office|office information)/.test(t) || t.includes('registrar') || t.includes('clinic') || t.includes('guidance')) {
+    const off = await fetchConfig('officeInfo') || data.officeInfo;
+    return showOverlay('Office Information', `
+      <div><b>Registrar Hours:</b> ${off.registrarHours}</div>
+      <div><b>Clinic Status:</b> ${off.clinicStatus}</div>
+      <div><b>Guidance Availability:</b> ${off.guidanceAvailability}</div>
+    `);
+  }
+
+  if (t.includes('library') || t.includes('canteen') || t.includes('laboratory') || t.includes('facility')) {
+    const fs = await fetchConfig('facilityStatus') || data.facilityStatus;
+    return showOverlay('Facility Status', `
+      <div><b>Library:</b> ${fs.library}</div>
+      <div><b>Canteen:</b> ${fs.canteen}</div>
+      <div><b>Laboratory:</b> ${fs.laboratory}</div>
+    `);
+  }
+
+  if (t.includes('room')) {
+    const rooms = await fetchRooms();
+    const free = rooms.filter(r => normalizeText(r.status) === 'free').map(r => r.name).slice(0,6);
+    const occ = rooms.filter(r => normalizeText(r.status) === 'occupied').map(r => r.name).slice(0,6);
+    return showOverlay('Room Availability', `
+      <div><b>Free:</b> ${free.join(', ') || 'None'}</div>
+      <div><b>Occupied:</b> ${occ.join(', ') || 'None'}</div>
+    `);
+  }
+
+  if (t.includes('full announcement') || t.includes('show announcements') || t.includes('announcements list')) {
+    const anns = await fetchAnnouncements(50);
+    return showOverlay('Announcements', anns.slice(0,8).map(a => `<div><b>${a.title}</b> — ${a.time} • ${a.date}</div>`).join(''));
+  }
+
+  if (t.includes('schedule')) {
+    const schs = await fetchSchedules(50);
+    return showOverlay('Daily Schedule', schs.slice(0,8).map(s => `<div><b>${s.title}</b> — ${s.time}</div>`).join(''));
+  }
+
+  if (t.includes('event')) {
+    const range = parseDate(t);
+    const evsAll = await fetchEvents(50);
+    let evs = evsAll;
+    if (range) {
+      const inRange = (e) => {
+        const d = new Date(e.date);
+        return d >= range.from && d <= range.to;
+      };
+      evs = evsAll.filter(inRange);
+    }
+    if (evs.length === 0) return showOverlay('Upcoming Events', '<div>No events found for the requested period.</div>');
+    return showOverlay('Upcoming Events', evs.slice(0,6).map(e => `<div><b>${e.title}</b> — ${e.date}</div>`).join(''));
+  }
+
+  if (t.includes('qr')) {
+    const mediaCfg = await fetchConfig('media') || data.media;
+    const label = mediaCfg.value || 'FlexiSystem';
+    return showOverlay('QR Code', `
+      <div style="text-align:center">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(label)}" class="qr-code" alt="QR">
+        <div style="margin-top:8px; font-weight:bold;">${label}</div>
+      </div>
+    `);
+  }
+
+  return showOverlay('Voice Control', '<div>Sorry, I did not understand. Try: “Hey Flexi, show upcoming events this week”.</div>');
+}
 // --- Dashboard Render Logic ---
 async function renderDashboard() {
   const data = getData();
@@ -368,6 +497,42 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDashboard();
     setInterval(updateTime, 1000);
     updateTime();
+    const closeBtn = document.getElementById('voice-close');
+    if (closeBtn) closeBtn.addEventListener('click', hideOverlay);
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recog = null;
+    let backoff = 600;
+    let listening = false;
+    const mic = document.getElementById('voice-mic');
+    const startListening = async () => {
+      if (!SR || !mic) return;
+      if (!recog) {
+        recog = new SR();
+        recog.lang = 'en-US';
+        recog.continuous = true;
+        recog.interimResults = true;
+        recog.maxAlternatives = 1;
+        recog.onresult = async (e) => {
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const tx = e.results[i][0].transcript;
+            const final = e.results[i].isFinal;
+            const norm = normalizeText(tx);
+            if (norm.includes('hey flexi')) { if (final) await handleVoice(tx); }
+          }
+        };
+        recog.onend = () => { if (listening) setTimeout(() => { backoff = Math.min(backoff * 2, 5000); try { recog.start(); } catch {} }, backoff); };
+        recog.onerror = () => { showOverlay('Voice Control', '<div>Microphone error. Please check browser permissions.</div>'); };
+      }
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+      } catch {}
+      listening = true;
+      backoff = 600;
+      try { recog.start(); showOverlay('Listening…', '<div>Say: “Hey Flexi, show upcoming events this week”.</div>'); } catch {}
+    };
+    if (mic) mic.addEventListener('click', startListening);
   }
   
   if (document.getElementById('admin-view')) {
