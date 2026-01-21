@@ -169,7 +169,7 @@ export default function UserDashboard() {
         <div className="grid gap-3 md:gap-6 h-full grid-rows-[7fr_3fr]">
           
           {/* 2. Announcements */}
-          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full flex flex-col">
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full flex flex-col min-h-0">
             <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2 flex-shrink-0">
               <Megaphone className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Announcements</h2>
@@ -193,7 +193,7 @@ export default function UserDashboard() {
           </section>
 
           {/* 2.5 Daily Schedule & Reminders */}
-          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full flex flex-col">
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full flex flex-col min-h-0">
             <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2 flex-shrink-0">
               <Clock style={{width:'clamp(18px,2.4vw,26px)',height:'clamp(18px,2.4vw,26px)'}} className="text-white" />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Today’s Schedule</h2>
@@ -223,7 +223,7 @@ export default function UserDashboard() {
         {/* Right Column */}
         <div className="grid gap-3 md:gap-6 h-full grid-rows-[7fr_3fr]">
           {/* Upper Right: Upcoming Events (Top 3) */}
-          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full flex flex-col">
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full flex flex-col min-h-0">
             <div className="bg-[#7CA99B] px-4 py-3 flex items-center space-x-2 flex-shrink-0">
               <Calendar style={{width:'clamp(18px,2.4vw,26px)',height:'clamp(18px,2.4vw,26px)'}} className="text-white" />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Upcoming Events</h2>
@@ -253,7 +253,7 @@ export default function UserDashboard() {
           </section>
 
            {/* 4. Media Highlights */}
-           <div className="bg-[#F0F4F1] rounded-2xl p-3 md:p-6 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#7CA99B] h-full overflow-y-auto">
+           <div className="bg-[#F0F4F1] rounded-2xl p-3 md:p-6 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#7CA99B] h-full overflow-y-auto min-h-0">
               <h3 className="font-bold text-gray-800 text-lg mb-2 sticky top-0 bg-[#F0F4F1] z-10">Media Highlights</h3>
               {data.events.length === 0 && !data.ticker ? null : null}
               {data.media ? (
