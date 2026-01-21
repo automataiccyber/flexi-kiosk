@@ -214,8 +214,14 @@ export default function UserDashboard() {
             </div>
           </section>
 
-          {/* 3. Upcoming Events (List View) */}
-           <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 lg:row-start-1 lg:col-start-2 h-full">
+          {/* 3. Upcoming Events moved to right column */}
+
+        </div>
+
+        {/* Right Column */}
+        <div className="grid gap-6 h-full" style={{gridTemplateRows: '50% 50%'}}>
+          {/* Upper Right: Upcoming Events (Top 3) */}
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full">
             <div className="bg-[#7CA99B] px-4 py-3 flex items-center space-x-2">
               <Calendar className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Upcoming Events</h2>
@@ -243,24 +249,6 @@ export default function UserDashboard() {
               })}
             </div>
           </section>
-
-        </div>
-
-        {/* Right Column */}
-        <div className="grid gap-6 h-full" style={{gridTemplateRows: '50% 50%'}}>
-           {/* More Events / Grid */}
-           <div className="flex-1 grid grid-cols-1 gap-4 overflow-hidden hidden">
-              {data.events.slice(1).map((evt) => (
-                  <div key={evt.id} className="bg-white rounded-2xl shadow-sm p-4 flex space-x-4">
-                     <div className="w-1/3 h-24 bg-gray-200 rounded-lg flex-shrink-0 bg-cover bg-center" style={{backgroundImage: `url('https://placehold.co/400x400?text=${evt.title}')`}}></div>
-                     <div className="flex-1">
-                        <h3 className="font-bold text-gray-800">{evt.title}</h3>
-                        <p className="text-sm text-blue-500 font-medium mb-1">{evt.date}</p>
-                        <p className="text-sm text-gray-600 leading-snug">{evt.description}</p>
-                     </div>
-                  </div>
-              ))}
-           </div>
 
            {/* 4. Media Highlights */}
            <div className="bg-[#F0F4F1] rounded-2xl p-6 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#7CA99B] h-full">
