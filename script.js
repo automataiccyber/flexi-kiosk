@@ -349,12 +349,12 @@ async function handleVoice(text) {
     `);
   }
 
-  if (t.includes('full announcement') || t.includes('show announcements') || t.includes('announcements list')) {
+  if (t.includes('full announcement') || t.includes('show announcements') || t.includes('announcements list') || t.includes('announcement')) {
     const anns = await fetchAnnouncements(50);
     return showOverlay('Announcements', anns.slice(0,8).map(a => `<div><b>${a.title}</b> — ${a.time} • ${a.date}</div>`).join(''));
   }
 
-  if (t.includes('schedule')) {
+  if (t.includes('schedule') || t.includes('daily schedule') || t.includes('weekly schedule')) {
     const schs = await fetchSchedules(50);
     return showOverlay('Daily Schedule', schs.slice(0,8).map(s => `<div><b>${s.title}</b> — ${s.time}</div>`).join(''));
   }
@@ -537,7 +537,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let voiceBuf = '';
     let voiceTimer = null;
     const startListening = async () => {
-      if (!SR || !mic) return;
+      if (!mic) return;
+      if (!SR) {
+        showOverlay('Voice Not Supported', '<div>Your browser does not support voice recognition.</div>' + commandsHTML());
+        return;
+      }
       if (!recog) {
         recog = new SR();
         recog.lang = 'en-US';
@@ -582,7 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
       backoff = 600;
       sessionDeadline = Date.now() + 15000;
       voiceBuf = '';
-      try { recog.start(); showOverlay('Listening…', '<div>Say: “Hey Flexi, show upcoming events this week”.</div>'); } catch {}
+      try { recog.start(); showOverlay('Voice Commands', commandsHTML() + '<div style="margin-top:8px; color:#2d3748;">Listening… say “Hey Flexi …”</div>'); } catch {}
     };
     if (mic) mic.addEventListener('click', startListening);
   }
