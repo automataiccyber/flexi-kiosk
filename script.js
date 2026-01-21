@@ -192,6 +192,25 @@ async function fileToDataURL(file) {
   });
 }
 
+async function compressImageToDataURL(file, maxWidth = 1280, quality = 0.75) {
+  if (!file) return null;
+  const dataUrl = await fileToDataURL(file);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataUrl;
+  });
+}
+
 // --- Time & Date ---
 function updateTime() {
   const now = new Date();
@@ -368,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!title || !date || !file) return;
       let url = await uploadImage(file, 'events');
       if (!url) {
-        url = await fileToDataURL(file);
+        url = await compressImageToDataURL(file);
       }
       await addEvent(title, date, url);
       if (document.getElementById('events-admin-list')) {
@@ -434,7 +453,15 @@ document.addEventListener('DOMContentLoaded', () => {
           const mfile = mfileEl && mfileEl.files && mfileEl.files[0];
           if (mfile) {
             const url = await uploadImage(mfile, 'media');
-            if (url) newData.media.value = url;
+            if (url) newData.media.value = url; else newData.media.value = await compressImageToDataURL(mfile);
+          }
+        } else {
+          const mfileEl = document.getElementById('media-image-file');
+          const mfile = mfileEl && mfileEl.files && mfileEl.files[0];
+          if (mfile) {
+            newData.media.type = 'image';
+            const url = await uploadImage(mfile, 'media');
+            newData.media.value = url || (await compressImageToDataURL(mfile));
           }
         }
         await saveConfigDocs(newData);
