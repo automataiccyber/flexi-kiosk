@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, query, where, limit as qlimit } from "firebase/firestore";
+import { collection, onSnapshot, doc } from "firebase/firestore";
 import { 
   Megaphone, 
   Calendar, 
@@ -30,13 +30,21 @@ interface Event {
   description: string;
 }
 
+interface Schedule {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+}
+
 export default function UserDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [data, setData] = useState<{
     announcements: Announcement[];
     events: Event[];
     ticker: string;
-  }>({ announcements: [], events: [], ticker: "" });
+    schedule?: Schedule | null;
+  }>({ announcements: [], events: [], ticker: "", schedule: null });
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [voiceText, setVoiceText] = useState("");
   const [overlayResults, setOverlayResults] = useState<string[]>([]);
@@ -51,14 +59,25 @@ export default function UserDashboard() {
   }, []);
 
   useEffect(() => {
-    const unsubAnnouncements = onSnapshot(query(collection(db, "announcements"), where("visible", "==", true)), (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })).sort((a:any,b:any)=> (b.priority?1:0) - (a.priority?1:0));
-      setData((prev) => ({ ...prev, announcements: list.slice(0, 2) }));
+    const unsubAnnouncements = onSnapshot(collection(db, "announcements"), (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      const filtered = list.filter((x:any) => x.visible !== false);
+      const prioritized = filtered.sort((a:any,b:any)=> (b.priority?1:0) - (a.priority?1:0));
+      setData((prev) => ({ ...prev, announcements: prioritized.slice(0, 2) }));
     });
 
-    const unsubEvents = onSnapshot(query(collection(db, "events"), where("visible", "==", true)), (snap) => {
+    const unsubEvents = onSnapshot(collection(db, "events"), (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-      setData((prev) => ({ ...prev, events: list.slice(0, 2) }));
+      const filtered = list.filter((x:any) => x.visible !== false);
+      setData((prev) => ({ ...prev, events: filtered.slice(0, 2) }));
+    });
+
+    const unsubSchedules = onSnapshot(collection(db, "schedules"), (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      const today = new Date().toISOString().slice(0,10);
+      const upcoming = list.filter((s:any) => s.visible !== false && s.date >= today).sort((a:any,b:any)=> a.date.localeCompare(b.date) || (a.time||"").localeCompare(b.time||""));
+      const nearest = upcoming[0] || null;
+      setData((prev) => ({ ...prev, schedule: nearest }));
     });
 
     const unsubTicker = onSnapshot(doc(db, "settings", "ticker"), (docSnap) => {
@@ -70,6 +89,7 @@ export default function UserDashboard() {
       unsubAnnouncements();
       unsubEvents();
       unsubTicker();
+      unsubSchedules();
     };
   }, []);
 
@@ -153,6 +173,29 @@ export default function UserDashboard() {
                     </div>
                   </div>
                 ))
+              )}
+            </div>
+          </section>
+
+          {/* 2.5 Daily Schedule & Reminders */}
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+            <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2">
+              <Clock className="text-white" size={24} />
+              <h2 className="text-white font-bold text-lg tracking-wide uppercase">Today’s Schedule</h2>
+            </div>
+            <div className="p-4">
+              {!data.schedule ? (
+                <p className="text-gray-500 text-center py-2">No schedule today.</p>
+              ) : (
+                <div className="bg-[#FFF8E7] rounded-xl p-4 border-l-4 border-[#E6B800]">
+                  <div className="flex items-center space-x-3">
+                    <Clock className="text-[#6B8EAD]" />
+                    <div>
+                      <div className="font-bold text-gray-800">{data.schedule.title}</div>
+                      <div className="text-gray-600 text-sm">{data.schedule.time} • {data.schedule.date}</div>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </section>
