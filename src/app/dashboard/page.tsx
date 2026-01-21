@@ -162,7 +162,7 @@ export default function UserDashboard() {
       </header>
 
       {/* Main Content Grid */}
-      <main className="px-6 py-2 overflow-hidden grid grid-cols-2 grid-rows-2 gap-6 w-full h-[85vh]" style={{gridTemplateRows: '70% 30%'}}>
+      <main className="px-6 pb-3 overflow-hidden grid grid-cols-2 grid-rows-2 gap-6 w-full h-[85vh]" style={{gridTemplateRows: '70% 30%'}}>
         
         {/* Left Column */}
         <div className="grid gap-6 h-full" style={{gridTemplateRows: '70% 30%'}}>
@@ -173,14 +173,14 @@ export default function UserDashboard() {
               <Megaphone className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Announcements</h2>
             </div>
-            <div className="p-4 space-y-3">
+            <div className="p-3 space-y-2">
               {Array.from({length:3}).map((_, i) => {
                 const ann = data.announcements[i];
                 return ann ? (
-                  <div key={ann.id} className="bg-[#FFF8E7] rounded-xl p-4 flex items-start space-x-3 border-l-4 border-[#E6B800]">
+                  <div key={ann.id} className="bg-[#FFF8E7] rounded-xl p-3 flex items-start space-x-3 border-l-4 border-[#E6B800]">
                     {ann.type === 'flag' ? <Flag className="text-[#E6B800] mt-1" /> : <Clock className="text-[#6B8EAD] mt-1" />}
                     <div>
-                      <h3 className="font-bold text-gray-800 text-lg">{ann.title}</h3>
+                      <h3 className="font-bold text-gray-800 text-base">{ann.title}</h3>
                       <p className="text-gray-600 text-sm">{ann.time} • {ann.date}</p>
                     </div>
                   </div>
@@ -197,11 +197,11 @@ export default function UserDashboard() {
               <Clock className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Today’s Schedule</h2>
             </div>
-            <div className="p-4">
+            <div className="p-3">
               {!data.schedule ? (
                 <p className="text-gray-500 text-center py-2">No schedule today.</p>
               ) : (
-                <div className="bg-[#FFF8E7] rounded-xl p-4 border-l-4 border-[#E6B800]">
+              <div className="bg-[#FFF8E7] rounded-xl p-3 border-l-4 border-[#E6B800]">
                   <div className="flex items-center space-x-3">
                     <Clock className="text-[#6B8EAD]" />
                     <div>
@@ -226,16 +226,16 @@ export default function UserDashboard() {
               <Calendar className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Upcoming Events</h2>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-3 space-y-3">
               {Array.from({length:3}).map((_, i) => {
                 const evt = data.events[i];
                 return evt ? (
-                  <div key={evt.id} className="bg-[#EBF5F8] rounded-xl p-4">
+                  <div key={evt.id} className="bg-[#EBF5F8] rounded-xl p-3">
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-bold text-gray-800 text-xl">{evt.title}</h3>
-                      <span className="text-[#6B8EAD] font-medium text-sm">{evt.date}</span>
+                      <h3 className="font-bold text-gray-800 text-base">{evt.title}</h3>
+                      <span className="text-[#6B8EAD] font-medium text-xs">{evt.date}</span>
                     </div>
-                    <div className="h-28 bg-gray-200 rounded-lg mb-2 flex items-center justify-center text-gray-400">
+                    <div className="h-24 bg-gray-200 rounded-lg mb-2 flex items-center justify-center text-gray-400">
                       {evt.image ? (
                         <div className="w-full h-full bg-cover bg-center rounded-lg" style={{backgroundImage: `url('${evt.image}')`}}></div>
                       ) : (
@@ -244,7 +244,7 @@ export default function UserDashboard() {
                     </div>
                   </div>
                 ) : (
-                  <div key={`evt-ph-${i}`} className="bg-[#EBF5F8] rounded-xl p-6 flex items-center justify-center text-gray-400">Event Placeholder</div>
+              <div key={`evt-ph-${i}`} className="bg-[#EBF5F8] rounded-xl p-6 flex items-center justify-center text-gray-400">Event Placeholder</div>
                 );
               })}
             </div>
@@ -280,7 +280,7 @@ export default function UserDashboard() {
       </main>
 
       {/* 5. Scrolling Ticker / Footer */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-[#2D3748] text-white h-[5vh] flex items-center px-6 z-50 shadow-lg">
+      <footer className="fixed bottom-0 left-0 right-0 bg-[#2D3748] text-white h-[5vh] flex items-center px-6 pt-1 z-50 shadow-lg">
         <div className="flex items-center space-x-2 mr-4 flex-shrink-0">
            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
            <span className="font-bold text-sm uppercase tracking-wider text-gray-300">Live</span>
@@ -294,7 +294,7 @@ export default function UserDashboard() {
         </div>
 
         {/* Voice Command Icon (Visual) */}
-        <div className="ml-4 w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white/20">
+        <div className="ml-4 mt-1 w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white/20">
            <Mic size={20} className="text-white" />
         </div>
       </footer>
