@@ -59,24 +59,6 @@ function getFirestoreDB() {
   }
 }
 
-function getStorage() {
-  try {
-    const db = getFirestoreDB();
-    if (!db) return null;
-    return firebase.storage();
-  } catch {
-    return null;
-  }
-}
-
-async function uploadImage(file, folder) {
-  const storage = getStorage();
-  if (!storage || !file) return null;
-  const key = `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9_.-]/g, '')}`;
-  const ref = storage.ref().child(key);
-  const snap = await ref.put(file);
-  return await snap.ref.getDownloadURL();
-}
 
 async function fetchAnnouncements(limitCount = 3) {
   try {
