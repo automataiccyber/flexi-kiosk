@@ -504,6 +504,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let backoff = 600;
     let listening = false;
     const mic = document.getElementById('voice-mic');
+    let voiceBuf = '';
+    let voiceTimer = null;
     const startListening = async () => {
       if (!SR || !mic) return;
       if (!recog) {
@@ -515,16 +517,23 @@ document.addEventListener('DOMContentLoaded', () => {
         recog.onresult = async (e) => {
           for (let i = e.resultIndex; i < e.results.length; i++) {
             const tx = e.results[i][0].transcript;
-            const norm = normalizeText(tx);
-            if (norm.includes('hey flexi')) {
-              await handleVoice(tx);
+            voiceBuf += (tx + ' ');
+          }
+          const normBuf = normalizeText(voiceBuf);
+          if (normBuf.includes('hey flexi')) {
+            const hasCmd = ['library','registrar','clinic','guidance','facility','room','announcement','schedule','event','qr','show','open']
+              .some(k => normBuf.includes(k));
+            clearTimeout(voiceTimer);
+            voiceTimer = setTimeout(async () => {
+              showOverlay('Processing…', `<div>${voiceBuf.trim()}</div>`);
+              await handleVoice(voiceBuf);
+              voiceBuf = '';
               try { recog.stop(); } catch {}
               listening = false;
-              break;
-            }
+            }, hasCmd ? 400 : 1500);
           }
         };
-        recog.onend = () => { listening = false; showOverlay('Voice Control', '<div>Stopped listening. Click the mic to listen again.</div>'); };
+        recog.onend = () => { listening = false; };
         recog.onerror = () => { showOverlay('Voice Control', '<div>Microphone error. Please check browser permissions.</div>'); };
       }
       try {
@@ -534,6 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch {}
       listening = true;
       backoff = 600;
+      voiceBuf = '';
       try { recog.start(); showOverlay('Listening…', '<div>Say: “Hey Flexi, show upcoming events this week”.</div>'); } catch {}
     };
     if (mic) mic.addEventListener('click', startListening);
