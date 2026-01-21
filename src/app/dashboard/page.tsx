@@ -36,6 +36,12 @@ interface Schedule {
   date: string;
   time: string;
 }
+interface MediaItem {
+  id: string;
+  type: "image" | "qr" | "quote";
+  value: string;
+  selected?: boolean;
+}
 
 export default function UserDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -44,7 +50,8 @@ export default function UserDashboard() {
     events: Event[];
     ticker: string;
     schedule?: Schedule | null;
-  }>({ announcements: [], events: [], ticker: "", schedule: null });
+    media?: MediaItem | null;
+  }>({ announcements: [], events: [], ticker: "", schedule: null, media: null });
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [voiceText, setVoiceText] = useState("");
   const [overlayResults, setOverlayResults] = useState<string[]>([]);
@@ -79,6 +86,11 @@ export default function UserDashboard() {
       const nearest = upcoming[0] || null;
       setData((prev) => ({ ...prev, schedule: nearest }));
     });
+    const unsubMedia = onSnapshot(collection(db, "media"), (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      const selected = list.find((m:any) => m.selected) || list[0] || null;
+      setData((prev) => ({ ...prev, media: selected }));
+    });
 
     const unsubTicker = onSnapshot(doc(db, "settings", "ticker"), (docSnap) => {
       const message = docSnap.exists() ? (docSnap.data() as any).message : "";
@@ -90,6 +102,7 @@ export default function UserDashboard() {
       unsubEvents();
       unsubTicker();
       unsubSchedules();
+      unsubMedia();
     };
   }, []);
 
@@ -152,10 +165,10 @@ export default function UserDashboard() {
       <main className="flex-1 px-6 overflow-hidden grid grid-cols-1 lg:grid-cols-2 gap-6 w-full h-full">
         
         {/* Left Column */}
-        <div className="h-full flex flex-col space-y-6">
+        <div className="contents">
           
           {/* 2. Announcements */}
-          <section className="flex-1 bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 lg:row-start-1 lg:col-start-1">
             <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2">
               <Megaphone className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Announcements</h2>
@@ -164,7 +177,7 @@ export default function UserDashboard() {
               {data.announcements.length === 0 ? (
                  <p className="text-gray-500 text-center py-4">No announcements today.</p>
               ) : (
-                data.announcements.map((ann) => (
+                data.announcements.slice(0,3).map((ann) => (
                   <div key={ann.id} className="bg-[#FFF8E7] rounded-xl p-4 flex items-start space-x-3 border-l-4 border-[#E6B800]">
                     {ann.type === 'flag' ? <Flag className="text-[#E6B800] mt-1" /> : <Clock className="text-[#6B8EAD] mt-1" />}
                     <div>
@@ -178,7 +191,7 @@ export default function UserDashboard() {
           </section>
 
           {/* 2.5 Daily Schedule & Reminders */}
-          <section className="flex-none bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+          <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 lg:row-start-2 lg:col-start-1">
             <div className="bg-[#6B8EAD] px-4 py-3 flex items-center space-x-2">
               <Clock className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Today’s Schedule</h2>
@@ -201,13 +214,13 @@ export default function UserDashboard() {
           </section>
 
           {/* 3. Upcoming Events (List View) */}
-           <section className="flex-[0.6] bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+           <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 lg:row-start-1 lg:col-start-2">
             <div className="bg-[#7CA99B] px-4 py-3 flex items-center space-x-2">
               <Calendar className="text-white" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide uppercase">Upcoming Events</h2>
             </div>
             <div className="p-4 space-y-4">
-               {data.events.slice(0, 1).map((evt) => (
+               {data.events.slice(0, 3).map((evt) => (
                   <div key={evt.id} className="bg-[#EBF5F8] rounded-xl p-4 flex flex-col">
                      <div className="flex justify-between items-start mb-2">
                        <h3 className="font-bold text-gray-800 text-xl">{evt.title}</h3>
@@ -216,7 +229,7 @@ export default function UserDashboard() {
                      <div className="h-32 bg-gray-200 rounded-lg mb-2 flex items-center justify-center text-gray-400">
                         {/* Placeholder for actual image */}
                         {evt.image ? (
-                           <div className="w-full h-full bg-cover bg-center rounded-lg" style={{backgroundImage: `url('https://placehold.co/600x400?text=${evt.title}')`}}></div>
+                           <div className="w-full h-full bg-cover bg-center rounded-lg" style={{backgroundImage: `url('${evt.image}')`}}></div>
                         ) : (
                            <span>Image</span>
                         )}
@@ -229,9 +242,9 @@ export default function UserDashboard() {
         </div>
 
         {/* Right Column */}
-        <div className="h-full flex flex-col space-y-6">
+        <div className="contents">
            {/* More Events / Grid */}
-           <div className="flex-1 grid grid-cols-1 gap-4 overflow-hidden">
+           <div className="flex-1 grid grid-cols-1 gap-4 overflow-hidden hidden">
               {data.events.slice(1).map((evt) => (
                   <div key={evt.id} className="bg-white rounded-2xl shadow-sm p-4 flex space-x-4">
                      <div className="w-1/3 h-24 bg-gray-200 rounded-lg flex-shrink-0 bg-cover bg-center" style={{backgroundImage: `url('https://placehold.co/400x400?text=${evt.title}')`}}></div>
@@ -244,15 +257,30 @@ export default function UserDashboard() {
               ))}
            </div>
 
-           {/* 4. QR Code / Scan for Updates */}
-           <div className="flex-1 bg-[#F0F4F1] rounded-2xl p-6 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#7CA99B]">
-              <h3 className="font-bold text-gray-800 text-lg mb-2">Scan for Updates</h3>
-              <div className="bg-white p-2 rounded-lg shadow-sm mb-3">
-                 <QrCode size={120} className="text-gray-800" />
-              </div>
-              <button onClick={startVoice} className="bg-[#7CA99B] text-white px-6 py-2 rounded-full font-bold shadow-sm hover:bg-[#6B9688] transition">
-                 Voice Control
-              </button>
+           {/* 4. Media Highlights */}
+           <div className="bg-[#F0F4F1] rounded-2xl p-6 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#7CA99B] lg:row-start-2 lg:col-start-2">
+              <h3 className="font-bold text-gray-800 text-lg mb-2">Media Highlights</h3>
+              {data.events.length === 0 && !data.ticker ? null : null}
+              {data.media ? (
+                data.media.type === "quote" ? (
+                  <div className="bg-white rounded-xl shadow-sm p-6 text-gray-800 max-w-md">
+                    {data.media.value}
+                  </div>
+                ) : data.media.type === "image" ? (
+                  <div className="w-full h-40 bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div className="w-full h-full bg-cover bg-center" style={{backgroundImage: `url('${(data as any).media.value}')`}} />
+                  </div>
+                ) : (
+                  <div className="bg-white p-2 rounded-lg shadow-sm mb-3">
+                    <QrCode size={120} className="text-gray-800" />
+                  </div>
+                )
+              ) : (
+                <div className="bg-white p-2 rounded-lg shadow-sm mb-3">
+                  <QrCode size={120} className="text-gray-800" />
+                </div>
+              )}
+              <button onClick={startVoice} className="bg-[#7CA99B] text-white px-6 py-2 rounded-full font-bold shadow-sm hover:bg-[#6B9688] transition">Voice Control</button>
            </div>
         </div>
 
