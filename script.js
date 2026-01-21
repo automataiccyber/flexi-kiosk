@@ -59,6 +59,25 @@ function getFirestoreDB() {
   }
 }
 
+function getStorage() {
+  try {
+    const db = getFirestoreDB();
+    if (!db) return null;
+    return firebase.storage();
+  } catch {
+    return null;
+  }
+}
+
+async function uploadImage(file, folder) {
+  const storage = getStorage();
+  if (!storage || !file) return null;
+  const key = `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+  const ref = storage.ref().child(key);
+  const snap = await ref.put(file);
+  return await snap.ref.getDownloadURL();
+}
+
 async function fetchAnnouncements(limitCount = 3) {
   const db = getFirestoreDB();
   if (!db) return getData().announcements.slice(0, limitCount);
@@ -320,9 +339,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (eventAddBtn) eventAddBtn.addEventListener('click', async () => {
       const title = document.getElementById('event-title').value.trim();
       const date = document.getElementById('event-date').value.trim();
-      const image = document.getElementById('event-image').value.trim();
-      if (!title || !date || !image) return;
-      await addEvent(title, date, image);
+      const fileEl = document.getElementById('event-image-file');
+      const file = fileEl && fileEl.files && fileEl.files[0];
+      if (!title || !date || !file) return;
+      const url = await uploadImage(file, 'events');
+      if (!url) return;
+      await addEvent(title, date, url);
       if (document.getElementById('events-admin-list')) {
         const evsAll = await fetchEvents(50);
         document.getElementById('events-admin-list').innerHTML = evsAll.map(e => `
@@ -331,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       document.getElementById('event-title').value = '';
       document.getElementById('event-date').value = '';
-      document.getElementById('event-image').value = '';
+      if (fileEl) fileEl.value = '';
     });
     const schAddBtn = document.getElementById('sch-add-btn');
     if (schAddBtn) schAddBtn.addEventListener('click', async () => {
@@ -381,6 +403,14 @@ document.addEventListener('DOMContentLoaded', () => {
             laboratory: document.getElementById('laboratory-status').value
           }
         };
+        if (newData.media.type === 'image') {
+          const mfileEl = document.getElementById('media-image-file');
+          const mfile = mfileEl && mfileEl.files && mfileEl.files[0];
+          if (mfile) {
+            const url = await uploadImage(mfile, 'media');
+            if (url) newData.media.value = url;
+          }
+        }
         await saveConfigDocs(newData);
         alert('Settings Saved');
       } catch (e) {

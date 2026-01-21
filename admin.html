@@ -42,7 +42,7 @@
         <div style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:0.5rem; align-items:end;">
           <div class="form-group"><label>Title</label><input type="text" id="event-title"></div>
           <div class="form-group"><label>Date</label><input type="date" id="event-date"></div>
-          <div class="form-group"><label>Image URL</label><input type="text" id="event-image" placeholder="https://..."></div>
+          <div class="form-group"><label>Image</label><input type="file" id="event-image-file" accept="image/*"></div>
           <button id="event-add-btn" class="btn-save">Add</button>
         </div>
         <div id="events-admin-list" style="margin-top:0.75rem;"></div>
@@ -72,7 +72,8 @@
             <option value="quote">Quote</option>
           </select>
         </div>
-        <div class="form-group"><label>Value</label><input type="text" id="media-value" placeholder="URL, text, or QR label"></div>
+        <div class="form-group"><label>Value</label><input type="text" id="media-value" placeholder="Text or label"></div>
+        <div class="form-group"><label>Upload Image</label><input type="file" id="media-image-file" accept="image/*"></div>
       </div>
     </section>
 
@@ -126,6 +127,7 @@
   <script src="firebase-config.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
