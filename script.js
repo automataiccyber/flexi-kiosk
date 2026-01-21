@@ -515,12 +515,16 @@ document.addEventListener('DOMContentLoaded', () => {
         recog.onresult = async (e) => {
           for (let i = e.resultIndex; i < e.results.length; i++) {
             const tx = e.results[i][0].transcript;
-            const final = e.results[i].isFinal;
             const norm = normalizeText(tx);
-            if (norm.includes('hey flexi')) { if (final) await handleVoice(tx); }
+            if (norm.includes('hey flexi')) {
+              await handleVoice(tx);
+              try { recog.stop(); } catch {}
+              listening = false;
+              break;
+            }
           }
         };
-        recog.onend = () => { if (listening) setTimeout(() => { backoff = Math.min(backoff * 2, 5000); try { recog.start(); } catch {} }, backoff); };
+        recog.onend = () => { listening = false; showOverlay('Voice Control', '<div>Stopped listening. Click the mic to listen again.</div>'); };
         recog.onerror = () => { showOverlay('Voice Control', '<div>Microphone error. Please check browser permissions.</div>'); };
       }
       try {
