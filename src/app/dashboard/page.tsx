@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot, doc } from "firebase/firestore";
 import { 
   Megaphone, 
   Calendar, 
@@ -44,21 +46,28 @@ export default function UserDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // Fetch data
+  // Live Firestore subscriptions
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch("/api/data");
-        const json = await res.json();
-        setData(json);
-      } catch (error) {
-        console.error("Failed to fetch data", error);
-      }
+    const unsubAnnouncements = onSnapshot(collection(db, "announcements"), (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      setData((prev) => ({ ...prev, announcements: list }));
+    });
+
+    const unsubEvents = onSnapshot(collection(db, "events"), (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      setData((prev) => ({ ...prev, events: list }));
+    });
+
+    const unsubTicker = onSnapshot(doc(db, "settings", "ticker"), (docSnap) => {
+      const message = docSnap.exists() ? (docSnap.data() as any).message : "";
+      setData((prev) => ({ ...prev, ticker: message }));
+    });
+
+    return () => {
+      unsubAnnouncements();
+      unsubEvents();
+      unsubTicker();
     };
-    fetchData();
-    // Poll every 10 seconds for updates
-    const poll = setInterval(fetchData, 10000);
-    return () => clearInterval(poll);
   }, []);
 
   return (

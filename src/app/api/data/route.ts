@@ -1,55 +1,45 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, addDoc, doc, setDoc, getDoc } from "firebase/firestore";
 
-// Define the path to the JSON file
-// In a real app, use a proper database.
-// For Vercel (Serverless), writing to the filesystem does NOT persist.
-// But for this demo (npm run dev), it works fine locally.
-const dbPath = path.join(process.cwd(), "src/lib/db.json");
-
-function readDb() {
-  try {
-    const data = fs.readFileSync(dbPath, "utf-8");
-    return JSON.parse(data);
-  } catch (error) {
-    return { announcements: [], events: [], ticker: "" };
-  }
-}
-
-function writeDb(data: any) {
-  try {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
-  } catch (error) {
-    console.error("Failed to write to db", error);
-  }
-}
+// Helper to get data if Firebase is not configured (fallback)
+// or just return empty/error if strictly Firebase
+// For better UX, we'll try to use Firebase, catch errors, and maybe fallback or just fail gracefully.
 
 export async function GET() {
-  const data = readDb();
-  return NextResponse.json(data);
+  try {
+    const announcementsSnapshot = await getDocs(collection(db, "announcements"));
+    const announcements = announcementsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const eventsSnapshot = await getDocs(collection(db, "events"));
+    const events = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const tickerDoc = await getDoc(doc(db, "settings", "ticker"));
+    const ticker = tickerDoc.exists() ? tickerDoc.data().message : "";
+
+    return NextResponse.json({ announcements, events, ticker });
+  } catch (error) {
+    console.error("Firebase Read Error:", error);
+    // Fallback to empty structure if Firebase fails (e.g. missing keys)
+    return NextResponse.json({ announcements: [], events: [], ticker: "Error connecting to database." });
+  }
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const db = readDb();
+  try {
+    const body = await req.json();
 
-  if (body.type === "announcement") {
-    const newAnnouncement = {
-      id: Date.now().toString(),
-      ...body.data,
-    };
-    db.announcements.push(newAnnouncement);
-  } else if (body.type === "event") {
-     const newEvent = {
-      id: Date.now().toString(),
-      ...body.data,
-    };
-    db.events.push(newEvent);
-  } else if (body.type === "ticker") {
-    db.ticker = body.data;
+    if (body.type === "announcement") {
+      await addDoc(collection(db, "announcements"), body.data);
+    } else if (body.type === "event") {
+      await addDoc(collection(db, "events"), body.data);
+    } else if (body.type === "ticker") {
+      await setDoc(doc(db, "settings", "ticker"), { message: body.data });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Firebase Write Error:", error);
+    return NextResponse.json({ success: false, error: "Failed to save data." }, { status: 500 });
   }
-
-  writeDb(db);
-  return NextResponse.json({ success: true, data: db });
 }

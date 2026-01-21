@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Megaphone, Calendar, Type } from "lucide-react";
+import { db } from "@/lib/firebase";
+import { addDoc, collection, doc, setDoc } from "firebase/firestore";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -45,11 +47,13 @@ export default function AdminDashboard() {
     }
 
     try {
-      await fetch("/api/data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, data }),
-      });
+      if (type === "announcement") {
+        await addDoc(collection(db, "announcements"), data);
+      } else if (type === "event") {
+        await addDoc(collection(db, "events"), data);
+      } else if (type === "ticker") {
+        await setDoc(doc(db, "settings", "ticker"), { message: data });
+      }
       alert("Updated successfully!");
       // Reset forms
       setAnnouncement({ title: "", date: "", time: "", type: "flag" });
