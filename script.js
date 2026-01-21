@@ -79,47 +79,65 @@ async function uploadImage(file, folder) {
 }
 
 async function fetchAnnouncements(limitCount = 3) {
-  const db = getFirestoreDB();
-  if (!db) return getData().announcements.slice(0, limitCount);
-  const snap = await db.collection('announcements').orderBy('createdAt', 'desc').limit(limitCount).get();
-  return snap.docs.map(d => d.data());
+  try {
+    const db = getFirestoreDB();
+    if (!db) throw new Error('no-db');
+    const snap = await db.collection('announcements').orderBy('createdAt', 'desc').limit(limitCount).get();
+    const rows = snap.docs.map(d => d.data());
+    if (!rows || rows.length === 0) throw new Error('empty');
+    return rows;
+  } catch {
+    return getData().announcements.slice(0, limitCount);
+  }
 }
 
 async function addAnnouncement(title, date, time) {
   const db = getFirestoreDB();
-  if (!db) {
-    const data = getData();
-    data.announcements.unshift({ title, date, time });
-    saveData(data);
-    return;
+  const doc = { title, date, time, createdAt: new Date().toISOString() };
+  if (db) {
+    try { await db.collection('announcements').add(doc); } catch {}
   }
-  await db.collection('announcements').add({ title, date, time, createdAt: new Date().toISOString() });
+  const data = getData();
+  data.announcements.unshift({ title, date, time });
+  saveData(data);
 }
 
 async function fetchEvents(limitCount = 1) {
-  const db = getFirestoreDB();
-  if (!db) return getData().events.slice(0, limitCount);
-  const snap = await db.collection('events').orderBy('createdAt', 'desc').limit(limitCount).get();
-  return snap.docs.map(d => d.data());
+  try {
+    const db = getFirestoreDB();
+    if (!db) throw new Error('no-db');
+    const snap = await db.collection('events').orderBy('createdAt', 'desc').limit(limitCount).get();
+    const rows = snap.docs.map(d => d.data());
+    if (!rows || rows.length === 0) throw new Error('empty');
+    return rows;
+  } catch {
+    return getData().events.slice(0, limitCount);
+  }
 }
 
 async function addEvent(title, date, image) {
   const db = getFirestoreDB();
   const displayDate = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  if (!db) {
-    const data = getData();
-    data.events.unshift({ title, date: displayDate, image });
-    saveData(data);
-    return;
+  const doc = { title, date: displayDate, image, createdAt: new Date().toISOString() };
+  if (db) {
+    try { await db.collection('events').add(doc); } catch {}
   }
-  await db.collection('events').add({ title, date: displayDate, image, createdAt: new Date().toISOString() });
+  const data = getData();
+  data.events.unshift({ title, date: displayDate, image });
+  saveData(data);
 }
 
 async function fetchSchedules(limitCount = 2) {
-  const db = getFirestoreDB();
-  if (!db) return getData().schedules.slice(0, limitCount);
-  const snap = await db.collection('schedules').orderBy('createdAt', 'desc').limit(limitCount).get();
-  return snap.docs.map(d => d.data());
+  try {
+    const db = getFirestoreDB();
+    if (!db) throw new Error('no-db');
+    const snap = await db.collection('schedules').orderBy('createdAt', 'desc').limit(limitCount).get();
+    const rows = snap.docs.map(d => d.data());
+    if (!rows || rows.length === 0) throw new Error('empty');
+    return rows;
+  } catch {
+    return getData().schedules.slice(0, limitCount);
+  }
 }
 
 function to12h(t) {
@@ -143,14 +161,16 @@ async function addSchedule(title, start, end) {
 
 async function saveConfigDocs(payload) {
   const db = getFirestoreDB();
-  if (!db) {
-    saveData(payload);
-    return;
+  if (db) {
+    try {
+      await db.collection('config').doc('ticker').set({ text: payload.ticker });
+      await db.collection('config').doc('media').set(payload.media);
+      await db.collection('config').doc('officeInfo').set(payload.officeInfo);
+      await db.collection('config').doc('facilityStatus').set(payload.facilityStatus);
+    } catch {}
   }
-  await db.collection('config').doc('ticker').set({ text: payload.ticker });
-  await db.collection('config').doc('media').set(payload.media);
-  await db.collection('config').doc('officeInfo').set(payload.officeInfo);
-  await db.collection('config').doc('facilityStatus').set(payload.facilityStatus);
+  const current = getData();
+  saveData({ ...current, ...payload });
 }
 
 async function addRoom(name, status) {
@@ -165,22 +185,31 @@ async function addRoom(name, status) {
 }
 
 async function fetchRooms() {
-  const db = getFirestoreDB();
-  if (!db) return getData().roomAvailability;
-  const snap = await db.collection('rooms').orderBy('createdAt', 'desc').get();
-  return snap.docs.map(d => d.data());
+  try {
+    const db = getFirestoreDB();
+    if (!db) throw new Error('no-db');
+    const snap = await db.collection('rooms').orderBy('createdAt', 'desc').get();
+    const rows = snap.docs.map(d => d.data());
+    if (!rows || rows.length === 0) throw new Error('empty');
+    return rows;
+  } catch {
+    return getData().roomAvailability;
+  }
 }
 
 async function fetchConfig(name) {
-  const db = getFirestoreDB();
-  if (!db) {
+  try {
+    const db = getFirestoreDB();
+    if (!db) throw new Error('no-db');
+    const doc = await db.collection('config').doc(name).get();
+    if (!doc.exists) throw new Error('empty');
+    return doc.data();
+  } catch {
     const data = getData();
     if (name === 'ticker') return { text: data.ticker };
     if (name === 'media') return data.media;
     return null;
   }
-  const doc = await db.collection('config').doc(name).get();
-  return doc.exists ? doc.data() : null;
 }
 
 async function fileToDataURL(file) {
