@@ -255,6 +255,27 @@ function normalizeText(s) {
   return (s || '').toLowerCase().replace(/[\.,!?]/g, '').trim();
 }
 
+function commandsHTML() {
+  const cmds = [
+    'Hey Flexi, is the library open?',
+    'Hey Flexi, registrar office hours',
+    'Hey Flexi, clinic status',
+    'Hey Flexi, guidance office availability',
+    'Hey Flexi, show facility status',
+    'Hey Flexi, room availability',
+    'Hey Flexi, show free rooms',
+    'Hey Flexi, full announcement list',
+    'Hey Flexi, show schedule',
+    'Hey Flexi, show upcoming events today',
+    'Hey Flexi, show upcoming events tomorrow',
+    'Hey Flexi, show upcoming events this week',
+    'Hey Flexi, show events on January 25',
+    'Hey Flexi, show events from Jan 20 to Jan 25',
+    'Hey Flexi, show QR code'
+  ];
+  return '<div>' + cmds.map(c => `<div>• ${c}</div>`).join('') + '</div>';
+}
+
 function parseDate(text) {
   const now = new Date();
   const n = normalizeText(text);
@@ -296,6 +317,9 @@ async function handleVoice(text) {
   const data = getData();
   const prefix = 'hey flexi';
   const t = q.startsWith(prefix) ? q.replace(prefix, '').trim() : q;
+  if (t === 'help' || t.includes('commands') || t.includes('what can you do')) {
+    return showOverlay('Voice Commands', commandsHTML());
+  }
 
   if (/^(show|open)\s+(office|office information)/.test(t) || t.includes('registrar') || t.includes('clinic') || t.includes('guidance')) {
     const off = await fetchConfig('officeInfo') || data.officeInfo;
@@ -366,7 +390,7 @@ async function handleVoice(text) {
     `);
   }
 
-  return showOverlay('Voice Control', '<div>Sorry, I did not understand. Try: “Hey Flexi, show upcoming events this week”.</div>');
+  return showOverlay('Voice Commands', commandsHTML());
 }
 // --- Dashboard Render Logic ---
 async function renderDashboard() {
@@ -527,16 +551,15 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           const normBuf = normalizeText(voiceBuf);
           if (normBuf.includes('hey flexi')) {
-            const hasCmd = ['library','registrar','clinic','guidance','facility','room','announcement','schedule','event','qr','show','open']
+            const hasCmd = ['library','registrar','clinic','guidance','facility','room','announcement','schedule','event','qr','show','open','commands','help']
               .some(k => normBuf.includes(k));
             clearTimeout(voiceTimer);
             voiceTimer = setTimeout(async () => {
-              showOverlay('Processing…', `<div>${voiceBuf.trim()}</div>`);
               await handleVoice(voiceBuf);
               voiceBuf = '';
               try { recog.stop(); } catch {}
               listening = false;
-            }, hasCmd ? 400 : 1500);
+            }, hasCmd ? 300 : 1200);
           }
         };
         recog.onend = () => {
@@ -552,7 +575,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
           await navigator.mediaDevices.getUserMedia({ audio: true });
         }
-      } catch {}
+      } catch (e) {
+        showOverlay('Microphone Blocked', '<div>Please allow microphone access in browser settings, then click the mic again.</div>' + commandsHTML());
+      }
       listening = true;
       backoff = 600;
       sessionDeadline = Date.now() + 15000;
