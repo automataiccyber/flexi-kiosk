@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc } from "firebase/firestore";
+import { collection, onSnapshot, doc, query, where, limit as qlimit } from "firebase/firestore";
 import { 
   Megaphone, 
   Calendar, 
@@ -37,6 +37,10 @@ export default function UserDashboard() {
     events: Event[];
     ticker: string;
   }>({ announcements: [], events: [], ticker: "" });
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const [voiceText, setVoiceText] = useState("");
+  const [overlayResults, setOverlayResults] = useState<string[]>([]);
+  const recogRef = useRef<any>(null);
 
   // Update time every second
   useEffect(() => {
@@ -46,16 +50,15 @@ export default function UserDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // Live Firestore subscriptions
   useEffect(() => {
-    const unsubAnnouncements = onSnapshot(collection(db, "announcements"), (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-      setData((prev) => ({ ...prev, announcements: list }));
+    const unsubAnnouncements = onSnapshot(query(collection(db, "announcements"), where("visible", "==", true)), (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })).sort((a:any,b:any)=> (b.priority?1:0) - (a.priority?1:0));
+      setData((prev) => ({ ...prev, announcements: list.slice(0, 2) }));
     });
 
-    const unsubEvents = onSnapshot(collection(db, "events"), (snap) => {
+    const unsubEvents = onSnapshot(query(collection(db, "events"), where("visible", "==", true)), (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-      setData((prev) => ({ ...prev, events: list }));
+      setData((prev) => ({ ...prev, events: list.slice(0, 2) }));
     });
 
     const unsubTicker = onSnapshot(doc(db, "settings", "ticker"), (docSnap) => {
@@ -69,6 +72,39 @@ export default function UserDashboard() {
       unsubTicker();
     };
   }, []);
+
+  const startVoice = () => {
+    setOverlayOpen(true);
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SR) {
+      const recog = new SR();
+      recog.continuous = false;
+      recog.lang = "en-US";
+      recog.onresult = (e: any) => {
+        const text = e.results[0][0].transcript as string;
+        setVoiceText(text);
+        handleQuery(text);
+      };
+      recog.start();
+      recogRef.current = recog;
+    }
+  };
+
+  const handleQuery = async (text: string) => {
+    const t = text.toLowerCase();
+    const out: string[] = [];
+    if (t.includes("registrar")) out.push("Registrar: see office_info type=registrar");
+    if (t.includes("clinic")) out.push("Clinic: see office_info type=clinic");
+    if (t.includes("guidance")) out.push("Guidance: see office_info type=guidance");
+    if (t.includes("library")) out.push("Library: see facilities type=library");
+    if (t.includes("canteen")) out.push("Canteen: see facilities type=canteen");
+    if (t.includes("laboratory")) out.push("Laboratory: see facilities type=laboratory");
+    if (t.includes("rooms")) out.push("Rooms: see rooms collection");
+    if (t.includes("announcements")) out.push("Full announcements available");
+    if (t.includes("schedule")) out.push("Full schedule available");
+    if (t.includes("events")) out.push("Upcoming events list available");
+    setOverlayResults(out.length ? out : ["No direct match. Try: 'Hey Flexi, registrar office hours'."]);
+  };
 
   return (
     <div className="flex flex-col h-screen bg-[#F5F5F0] overflow-hidden font-sans text-gray-800">
@@ -93,7 +129,7 @@ export default function UserDashboard() {
       </header>
 
       {/* Main Content Grid */}
-      <main className="flex-1 px-6 pb-20 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto w-full">
+      <main className="flex-1 px-6 pb-20 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto w-full">
         
         {/* Left Column */}
         <div className="space-y-6">
@@ -171,8 +207,8 @@ export default function UserDashboard() {
               <div className="bg-white p-2 rounded-lg shadow-sm mb-3">
                  <QrCode size={120} className="text-gray-800" />
               </div>
-              <button className="bg-[#7CA99B] text-white px-6 py-2 rounded-full font-bold shadow-sm hover:bg-[#6B9688] transition">
-                 Scan for Updates
+              <button onClick={startVoice} className="bg-[#7CA99B] text.white px-6 py-2 rounded-full font-bold shadow-sm hover:bg-[#6B9688] transition">
+                 Voice Control
               </button>
            </div>
         </div>
@@ -199,6 +235,18 @@ export default function UserDashboard() {
         </div>
       </footer>
 
+      {overlayOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items.center justify.center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+            <div className="font-bold mb-2">Voice Input</div>
+            <div className="text-sm text.gray-600 mb-2">{voiceText || "Listening..."}</div>
+            <div className="space-y-2 max-h-64 overflow-auto">
+              {overlayResults.map((r, i) => (<div key={i} className="p-2 border rounded text-sm">{r}</div>))}
+            </div>
+            <button onClick={()=>setOverlayOpen(false)} className="mt-4 px-4 py-2 bg-gray-900 text-white rounded">Close</button>
+          </div>
+        </div>
+      )}
       <style jsx global>{`
         @keyframes marquee {
           0% { transform: translateX(100%); }
