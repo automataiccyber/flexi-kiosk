@@ -12,38 +12,120 @@
       <h1>Admin Dashboard</h1>
       <a href="index.html" style="color:red; text-decoration:none;">Logout</a>
     </div>
-    
-    <div class="admin-section">
-      <div class="form-group">
-        <label>Ticker Message</label>
-        <input type="text" id="ticker-input">
-      </div>
-    </div>
 
-    <div class="admin-section">
-      <div class="form-group">
-        <label>Announcements (JSON)</label>
-        <textarea id="announcements-input" rows="5"></textarea>
+    <section class="card" style="margin-bottom:1rem;">
+      <div class="card-header header-green">Scrolling Ticker</div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>Message</label>
+          <input type="text" id="ticker-input" placeholder="Enter ticker text">
+        </div>
       </div>
-      <div class="form-group">
-        <label>Upcoming Events (JSON)</label>
-        <textarea id="events-input" rows="5"></textarea>
+    </section>
+
+    <section class="card" style="margin-bottom:1rem;">
+      <div class="card-header header-blue">School Announcements</div>
+      <div class="card-body">
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:0.5rem; align-items:end;">
+          <div class="form-group"><label>Title</label><input type="text" id="ann-title"></div>
+          <div class="form-group"><label>Date</label><input type="date" id="ann-date"></div>
+          <div class="form-group"><label>Time</label><input type="time" id="ann-time"></div>
+          <button id="ann-add-btn" class="btn-save">Add</button>
+        </div>
+        <div id="announcements-admin-list" style="margin-top:0.75rem;"></div>
       </div>
-      <div class="form-group">
-        <label>Daily Schedule (JSON)</label>
-        <textarea id="schedule-input" rows="5"></textarea>
+    </section>
+
+    <section class="card" style="margin-bottom:1rem;">
+      <div class="card-header header-green">Upcoming Events</div>
+      <div class="card-body">
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:0.5rem; align-items:end;">
+          <div class="form-group"><label>Title</label><input type="text" id="event-title"></div>
+          <div class="form-group"><label>Date</label><input type="date" id="event-date"></div>
+          <div class="form-group"><label>Image URL</label><input type="text" id="event-image" placeholder="https://..."></div>
+          <button id="event-add-btn" class="btn-save">Add</button>
+        </div>
+        <div id="events-admin-list" style="margin-top:0.75rem;"></div>
       </div>
-      <div class="form-group">
-        <label>Media / Highlight (JSON)</label>
-        <textarea id="media-input" rows="3"></textarea>
+    </section>
+
+    <section class="card" style="margin-bottom:1rem;">
+      <div class="card-header header-blue">Daily Schedule</div>
+      <div class="card-body">
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:0.5rem; align-items:end;">
+          <div class="form-group"><label>Title</label><input type="text" id="sch-title"></div>
+          <div class="form-group"><label>Start</label><input type="time" id="sch-start"></div>
+          <div class="form-group"><label>End</label><input type="time" id="sch-end"></div>
+          <button id="sch-add-btn" class="btn-save">Add</button>
+        </div>
+        <div id="schedule-admin-list" style="margin-top:0.75rem;"></div>
       </div>
-      <button id="save-btn" class="btn-save">Save Settings</button>
-    </div>
-    
-    <div style="text-align: center; margin-top: 2rem;">
-      <a href="dashboard.html" style="color: var(--primary-blue); text-decoration: none;">View Dashboard &rarr;</a>
+    </section>
+
+    <section class="card" style="margin-bottom:1rem;">
+      <div class="card-header header-green">Media / QR / Daily Quote</div>
+      <div class="card-body" style="display:grid; grid-template-columns: 1fr 2fr; gap:0.75rem;">
+        <div class="form-group"><label>Type</label>
+          <select id="media-type">
+            <option value="image">Image</option>
+            <option value="qr">QR</option>
+            <option value="quote">Quote</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Value</label><input type="text" id="media-value" placeholder="URL, text, or QR label"></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom:1rem;">
+      <div class="card-header header-blue">Office Information</div>
+      <div class="card-body" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.75rem;">
+        <div class="form-group"><label>Registrar Hours</label><input type="text" id="registrar-hours" placeholder="8:00 AM - 5:00 PM"></div>
+        <div class="form-group"><label>Clinic Status</label>
+          <select id="clinic-status"><option>Open</option><option>Closed</option></select>
+        </div>
+        <div class="form-group"><label>Guidance Availability</label>
+          <select id="guidance-availability"><option>Available</option><option>Unavailable</option></select>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom:1rem;">
+      <div class="card-header header-green">Facility Status</div>
+      <div class="card-body" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.75rem;">
+        <div class="form-group"><label>Library</label>
+          <select id="library-status"><option>Open</option><option>Closed</option></select>
+        </div>
+        <div class="form-group"><label>Canteen</label>
+          <select id="canteen-status"><option>Open</option><option>Closed</option></select>
+        </div>
+        <div class="form-group"><label>Laboratory</label>
+          <select id="laboratory-status"><option>Available</option><option>Unavailable</option></select>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom:1rem;">
+      <div class="card-header header-blue">Room Availability</div>
+      <div class="card-body">
+        <div style="display:grid; grid-template-columns: 2fr 1fr auto; gap:0.5rem; align-items:end;">
+          <div class="form-group"><label>Room Name</label><input type="text" id="room-name" placeholder="Room 101"></div>
+          <div class="form-group"><label>Status</label>
+            <select id="room-status"><option>Free</option><option>Occupied</option></select>
+          </div>
+          <button id="room-add-btn" class="btn-save">Add</button>
+        </div>
+        <div id="rooms-admin-list" style="margin-top:0.75rem;"></div>
+      </div>
+    </section>
+
+    <div style="display:flex; gap:0.75rem;">
+      <button id="save-btn" class="btn-save">Save All</button>
+      <a href="dashboard.html" class="btn-save" style="text-decoration:none; display:inline-flex; align-items:center;">View Dashboard &rarr;</a>
     </div>
   </div>
+  <script src="firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
