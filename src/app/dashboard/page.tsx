@@ -147,26 +147,26 @@ export default function UserDashboard() {
       <header className="h-[10vh] flex items-center justify-center flex-shrink-0">
         <div className="flex items-center space-x-4">
           <div className="text-center">
-            <h1 className="text-6xl font-bold text-gray-800 tracking-tight">
+            <h1 className="font-bold text-gray-800 tracking-tight text-[clamp(2rem,5vw,3.75rem)]">
               {format(currentTime, "h:mm a")}
             </h1>
-            <p className="text-xl text-gray-600 mt-1">
+            <p className="text-gray-600 mt-1 text-[clamp(0.875rem,2vw,1.25rem)]">
               {format(currentTime, "EEEE, MMMM d")}
             </p>
           </div>
           <div className="flex flex-col items-end ml-8 text-gray-600">
-            <CloudSun size={48} className="text-yellow-500" />
-            <div className="text-lg font-medium">28°C</div>
-            <div className="text-sm">31°C</div>
+            <CloudSun className="text-yellow-500 w-[clamp(32px,4vw,48px)] h-[clamp(32px,4vw,48px)]" />
+            <div className="font-medium text-[clamp(1rem,2vw,1.125rem)]">28°C</div>
+            <div className="text-[clamp(0.75rem,1.5vw,0.875rem)]">31°C</div>
           </div>
         </div>
       </header>
 
       {/* Main Content Grid */}
-      <main className="flex-1 px-6 pb-6 overflow-hidden grid grid-cols-2 gap-6 w-full min-h-0">
+      <main className="flex-1 px-3 md:px-6 pb-6 overflow-hidden grid grid-cols-2 gap-3 md:gap-6 w-full min-h-0">
 
         {/* Left Column */}
-        <div className="grid gap-6 h-full grid-rows-[7fr_3fr]">
+        <div className="grid gap-3 md:gap-6 h-full grid-rows-[7fr_3fr]">
           
           {/* 2. Announcements */}
           <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full flex flex-col">
@@ -221,7 +221,7 @@ export default function UserDashboard() {
         </div>
 
         {/* Right Column */}
-        <div className="grid gap-6 h-full grid-rows-[1fr_1fr]">
+        <div className="grid gap-3 md:gap-6 h-full grid-rows-[7fr_3fr]">
           {/* Upper Right: Upcoming Events (Top 3) */}
           <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 h-full flex flex-col">
             <div className="bg-[#7CA99B] px-4 py-3 flex items-center space-x-2 flex-shrink-0">
@@ -253,29 +253,29 @@ export default function UserDashboard() {
           </section>
 
            {/* 4. Media Highlights */}
-           <div className="bg-[#F0F4F1] rounded-2xl p-6 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#7CA99B] h-full">
-              <h3 className="font-bold text-gray-800 text-lg mb-2">Media Highlights</h3>
+           <div className="bg-[#F0F4F1] rounded-2xl p-3 md:p-6 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#7CA99B] h-full overflow-y-auto">
+              <h3 className="font-bold text-gray-800 text-lg mb-2 sticky top-0 bg-[#F0F4F1] z-10">Media Highlights</h3>
               {data.events.length === 0 && !data.ticker ? null : null}
               {data.media ? (
                 data.media.type === "quote" ? (
-                  <div className="bg-white rounded-xl shadow-sm p-6 text-gray-800 max-w-md">
+                  <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 text-gray-800 max-w-md">
                     {data.media.value}
                   </div>
                 ) : data.media.type === "image" ? (
-                  <div className="w-full h-40 bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="w-full h-[clamp(80px,15vh,160px)] bg-white rounded-xl shadow-sm overflow-hidden flex-shrink-0">
                     <div className="w-full h-full bg-cover bg-center" style={{backgroundImage: `url('${(data as any).media.value}')`}} />
                   </div>
                 ) : (
-                  <div className="bg-white p-2 rounded-lg shadow-sm mb-3">
-                    <QrCode size={120} className="text-gray-800" />
+                  <div className="bg-white p-2 rounded-lg shadow-sm mb-3 flex-shrink-0">
+                    <QrCode className="text-gray-800 w-[clamp(80px,15vh,120px)] h-[clamp(80px,15vh,120px)]" />
                   </div>
                 )
               ) : (
-                <div className="bg-white p-2 rounded-lg shadow-sm mb-3">
-                  <QrCode size={120} className="text-gray-800" />
+                <div className="bg-white p-2 rounded-lg shadow-sm mb-3 flex-shrink-0">
+                  <QrCode className="text-gray-800 w-[clamp(80px,15vh,120px)] h-[clamp(80px,15vh,120px)]" />
                 </div>
               )}
-              <button onClick={startVoice} className="bg-[#7CA99B] text-white px-6 py-2 rounded-full font-bold shadow-sm hover:bg-[#6B9688] transition">Voice Control</button>
+              <button onClick={startVoice} className="bg-[#7CA99B] text-white px-6 py-2 rounded-full font-bold shadow-sm hover:bg-[#6B9688] transition mt-2 flex-shrink-0 text-[clamp(0.875rem,1.5vw,1rem)]">Voice Control</button>
            </div>
         </div>
 
