@@ -163,7 +163,7 @@ export default function UserDashboard() {
       </header>
 
       {/* Main Content Grid */}
-      <main className="px-6 pb-2 overflow-hidden grid grid-cols-2 grid-rows-2 gap-6 w-full" style={{height: 'calc(100vh - 15vh)', gridTemplateRows: '70% 30%'}}>
+      <main className="px-6 overflow-hidden grid grid-cols-2 grid-rows-2 gap-6 w-full" style={{height: 'calc(100vh - 10vh)', gridTemplateRows: '70% 30%', paddingBottom: '6vh'}}>
         
         {/* Left Column */}
         <div className="grid gap-6 h-full" style={{gridTemplateRows: '70% 30%'}}>
