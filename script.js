@@ -13,6 +13,9 @@ function getFirestoreDB() {
         }
       } catch {}
       window._db = firebase.firestore();
+      try {
+        window._db.settings({ experimentalForceLongPolling: true, ignoreUndefinedProperties: true });
+      } catch {}
     }
     return window._db || null;
   } catch {
@@ -445,6 +448,9 @@ async function renderDashboard() {
             <p style="font-size:0.85rem; color:#4a5568;">${a.time} • ${a.date}</p>
           </div>
         `).join('');
+      }, (err) => {
+        annContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">Firestore error: ${err && (err.code || err.message) || 'unknown'}</div>`;
+        try { console.error('Announcements snapshot error', err); } catch {}
       });
     } catch {}
   } else if (annContainer) {
@@ -483,6 +489,9 @@ async function renderDashboard() {
         setSlide();
         clearInterval(window._eventsSlideTimer);
         window._eventsSlideTimer = setInterval(setSlide, 5000);
+      }, (err) => {
+        eventsContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">Firestore error: ${err && (err.code || err.message) || 'unknown'}</div>`;
+        try { console.error('Events snapshot error', err); } catch {}
       });
     } catch {}
   } else if (eventsContainer) {
@@ -501,6 +510,9 @@ async function renderDashboard() {
             <p style="font-size:0.85rem; color:#4a5568;">${s.availability}</p>
           </div>
         `).join('');
+      }, (err) => {
+        scheduleContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">Firestore error: ${err && (err.code || err.message) || 'unknown'}</div>`;
+        try { console.error('Teachers snapshot error', err); } catch {}
       });
     } catch {}
   } else if (scheduleContainer) {
