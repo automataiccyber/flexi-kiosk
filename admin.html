@@ -50,18 +50,32 @@
     </section>
 
     <section class="card" style="margin-bottom:1rem;">
-      <div class="card-header header-blue">Teachers Availability</div>
+      <div class="card-header header-blue">Daily Schedule</div>
       <div class="card-body">
-        <div style="display:grid; grid-template-columns: 2fr 2fr auto; gap:0.5rem; align-items:end;">
-          <div class="form-group"><label>Name</label><input type="text" id="teacher-name" placeholder="e.g., Mr. Santos"></div>
-          <div class="form-group"><label>Availability</label><input type="text" id="teacher-availability" placeholder="e.g., 08:00 AM - 12:00 PM"></div>
-          <button id="teacher-add-btn" class="btn-save">Add</button>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:0.5rem; align-items:end;">
+          <div class="form-group"><label>Title</label><input type="text" id="sch-title"></div>
+          <div class="form-group"><label>Start</label><input type="time" id="sch-start"></div>
+          <div class="form-group"><label>End</label><input type="time" id="sch-end"></div>
+          <button id="sch-add-btn" class="btn-save">Add</button>
         </div>
-        <div id="teachers-admin-list" style="margin-top:0.75rem;"></div>
+        <div id="schedule-admin-list" style="margin-top:0.75rem;"></div>
       </div>
     </section>
 
-    
+    <section class="card" style="margin-bottom:1rem;">
+      <div class="card-header header-green">Media / QR / Daily Quote</div>
+      <div class="card-body" style="display:grid; grid-template-columns: 1fr 2fr; gap:0.75rem;">
+        <div class="form-group"><label>Type</label>
+          <select id="media-type">
+            <option value="image">Image</option>
+            <option value="qr">QR</option>
+            <option value="quote">Quote</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Value</label><input type="text" id="media-value" placeholder="Text or label"></div>
+        <div class="form-group"><label>Upload Image</label><input type="file" id="media-image-file" accept="image/*"></div>
+      </div>
+    </section>
 
     <section class="card" style="margin-bottom:1rem;">
       <div class="card-header header-blue">Office Information</div>
@@ -105,38 +119,14 @@
       </div>
     </section>
 
-    <div style="display:flex; gap:0.75rem; align-items:center;">
+    <div style="display:flex; gap:0.75rem;">
       <button id="save-btn" class="btn-save">Save All</button>
-      <button id="clean-db-btn" class="btn-save" style="background:#fc8181;">Clean Database</button>
       <a href="dashboard.html" class="btn-save" style="text-decoration:none; display:inline-flex; align-items:center;">View Dashboard &rarr;</a>
-      <span id="db-status" style="margin-left:auto; font-size:0.85rem; color:#4a5568;">Checking Firestore…</span>
     </div>
   </div>
   <script src="firebase-config.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="script.js"></script>
-  <script>
-    (function(){
-      var el = document.getElementById('db-status');
-      if (!el) return;
-      try {
-        if (!window.FIREBASE_CONFIG || !window.FIREBASE_CONFIG.projectId) {
-          el.textContent = 'Missing firebase-config.js or projectId';
-          el.style.color = '#c53030';
-          return;
-        }
-        if (!window.firebase || !firebase.firestore) {
-          el.textContent = 'Firebase SDK not loaded';
-          el.style.color = '#c53030';
-          return;
-        }
-      } catch(e) {
-        el.textContent = 'Initialization error';
-        el.style.color = '#c53030';
-      }
-    })();
-  </script>
 </body>
 </html>

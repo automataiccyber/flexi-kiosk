@@ -4,21 +4,29 @@ function saveData(_) { /* no-op: use Firestore only */ }
 
 function getFirestoreDB() {
   try {
-    if (!window.FIREBASE_CONFIG || !window.FIREBASE_CONFIG.apiKey) return null;
+    if (!window.FIREBASE_CONFIG || !window.FIREBASE_CONFIG.apiKey) {
+      console.error('FIREBASE_CONFIG missing');
+      return null;
+    }
+    if (typeof firebase === 'undefined') {
+      console.error('Firebase SDK not loaded');
+      return null;
+    }
     if (!window._firebaseApp) {
       window._firebaseApp = firebase.initializeApp(window.FIREBASE_CONFIG);
       try {
         if (firebase.appCheck && window.FIREBASE_RECAPTCHA_KEY) {
           firebase.appCheck().activate(window.FIREBASE_RECAPTCHA_KEY, true);
         }
-      } catch {}
+      } catch (e) { console.warn('AppCheck init error', e); }
       window._db = firebase.firestore();
       try {
         window._db.settings({ experimentalForceLongPolling: true, ignoreUndefinedProperties: true });
-      } catch {}
+      } catch (e) { console.warn('Firestore settings error', e); }
     }
     return window._db || null;
-  } catch {
+  } catch (e) {
+    console.error('getFirestoreDB error', e);
     return null;
   }
 }
@@ -27,12 +35,12 @@ async function checkFirestoreConnectivity() {
   try {
     const db = getFirestoreDB();
     if (!db) return { ok: false, error: 'no-db' };
-    const ping = { ts: Date.now() };
-    const ref = await db.collection('connectivity').add(ping);
-    const doc = await ref.get();
-    return doc.exists ? { ok: true } : { ok: false, error: 'no-doc' };
+    // Check connection by reading announcements (read-only check)
+    await db.collection('announcements').limit(1).get();
+    return { ok: true };
   } catch (e) {
-    return { ok: false, error: (e && e.code) || 'error' };
+    console.error('Connectivity check failed:', e);
+    return { ok: false, error: (e && e.code) || (e && e.message) || 'error' };
   }
 }
 
@@ -60,7 +68,8 @@ async function fetchAnnouncements(limitCount = 3) {
     const rows = snap.docs.map(d => d.data());
     if (!rows || rows.length === 0) throw new Error('empty');
     return rows;
-  } catch {
+  } catch (e) {
+    if (e.message !== 'empty') console.error('fetchAnnouncements error:', e);
     return [];
   }
 }
@@ -82,7 +91,8 @@ async function fetchEvents(limitCount = 1) {
     const rows = snap.docs.map(d => d.data());
     if (!rows || rows.length === 0) throw new Error('empty');
     return rows;
-  } catch {
+  } catch (e) {
+    if (e.message !== 'empty') console.error('fetchEvents error:', e);
     return [];
   }
 }
@@ -642,7 +652,7 @@ async function renderAdmin() {
 }
 
 // --- Event Listeners ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // Check which page we are on
   if (document.getElementById('dashboard-view')) {
     renderDashboard();

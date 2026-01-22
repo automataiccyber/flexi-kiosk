@@ -112,33 +112,9 @@
     </div>
   </div>
 
-  <div id="db-indicator" style="position: fixed; bottom: 8px; right: 12px; background: rgba(255,255,255,0.92); color: #1a202c; border-radius: 8px; padding: 6px 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.2); font-size: 0.8rem; z-index: 1002;">Checking Firestore…</div>
-
   <script src="firebase-config.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="script.js"></script>
-  <script>
-    (function(){
-      var el = document.getElementById('db-indicator');
-      if (!el) return;
-      try {
-        if (!window.FIREBASE_CONFIG || !window.FIREBASE_CONFIG.projectId) {
-          el.textContent = 'Missing firebase-config.js or projectId';
-          el.style.color = '#c53030';
-          return;
-        }
-        if (!window.firebase || !firebase.firestore) {
-          el.textContent = 'Firebase SDK not loaded';
-          el.style.color = '#c53030';
-          return;
-        }
-      } catch(e) {
-        el.textContent = 'Initialization error';
-        el.style.color = '#c53030';
-      }
-    })();
-  </script>
 </body>
 </html>
