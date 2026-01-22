@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flexi Kiosk - Welcome</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .landing-container {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--bg-creamy) 0%, #e2e8f0 100%);
+      gap: 3rem;
+    }
+    
+    .landing-title {
+      font-size: 3.5rem;
+      font-weight: 800;
+      color: var(--primary-blue);
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 1rem;
+    }
+    
+    .cards-wrapper {
+      display: flex;
+      gap: 3rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 1rem;
+    }
+    
+    .choice-card {
+      background: var(--bg-white);
+      width: 300px;
+      height: 250px;
+      border-radius: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
+    
+    .choice-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.12);
+      border-color: var(--primary-green);
+    }
+    
+    .choice-icon {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .choice-label {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+    
+    .choice-desc {
+      margin-top: 0.5rem;
+      color: var(--text-light);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 768px) {
+      .landing-title { font-size: 2.5rem; }
+      .cards-wrapper { gap: 1.5rem; }
+      .choice-card { width: 100%; max-width: 280px; height: 200px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="landing-container">
+    <div style="text-align: center;">
+      <h1 class="landing-title">Flexi Kiosk</h1>
+      <p style="color: var(--text-light); font-size: 1.2rem;">Select your destination</p>
+    </div>
+    
+    <div class="cards-wrapper">
+      <a href="dashboard.html" class="choice-card">
+        <div class="choice-icon">📊</div>
+        <div class="choice-label">Dashboard</div>
+        <div class="choice-desc">View announcements & events</div>
+      </a>
+      
+      <a href="admin.html" class="choice-card">
+        <div class="choice-icon">🔐</div>
+        <div class="choice-label">Admin Portal</div>
+        <div class="choice-desc">Manage content & settings</div>
+      </a>
+    </div>
+
+    <footer style="margin-top: 2rem; color: var(--text-light); font-size: 0.9rem;">
+      &copy; 2026 Flexi Kiosk System
+    </footer>
+  </div>
+
+</body>
+</html>
