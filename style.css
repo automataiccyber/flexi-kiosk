@@ -111,6 +111,9 @@ main {
   min-height: 0;
 }
 
+#left-col { grid-template-rows: 4fr 6fr; }
+#right-col { grid-template-rows: 6fr 4fr; }
+
 /* Cards */
 .card {
   background: var(--bg-white);

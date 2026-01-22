@@ -24,13 +24,15 @@
     <!-- Main Content -->
     <main>
       <!-- Left Column: Announcements (7fr) & Schedule (3fr) -->
-      <div class="column">
+      <div class="column" id="left-col">
         <section class="card">
           <div class="card-header header-blue" id="announcements-header">
             <span>📢</span> ANNOUNCEMENTS
           </div>
           <div class="card-body" id="announcements-list">
-            <!-- Dynamic Content -->
+            <div class="list-item"><h3>Enrollment Deadline</h3><p>5:00 PM • Feb 25, 2026</p></div>
+            <div class="list-item"><h3>Exam: Mathematics</h3><p>8:00 AM • Feb 24, 2026</p></div>
+            <div class="list-item"><h3>Room 301 Unavailable</h3><p>Proceed to Room 701</p></div>
           </div>
         </section>
 
@@ -39,27 +41,27 @@
             <span>👩‍🏫</span> TEACHERS AVAILABILITY
           </div>
           <div class="card-body" id="schedule-list">
-            <!-- Dynamic Content -->
-          </div>
-        </section>
-        <section class="card">
-          <div class="card-header header-blue" id="faculty-header">
-            <span>🏢</span> FACULTY STATUS
-          </div>
-          <div class="card-body" id="faculty-status">
-            <!-- Dynamic Content -->
+            <div class="list-item"><h3>Mr. Santos</h3><p>08:00 AM - 12:00 PM</p></div>
+            <div class="list-item"><h3>Ms. Reyes</h3><p>01:00 PM - 05:00 PM</p></div>
+            <div class="list-item"><h3>Dr. Cruz</h3><p>On Leave</p></div>
           </div>
         </section>
       </div>
 
       <!-- Right Column: Events (7fr) & Media (3fr) -->
-      <div class="column">
+      <div class="column" id="right-col">
         <section class="card">
           <div class="card-header header-green" id="events-header">
             <span>📅</span> UPCOMING EVENTS
           </div>
           <div class="card-body" id="events-list">
-            <!-- Dynamic Content -->
+            <div class="event-card">
+              <div style="display:flex; justify-content:space-between;">
+                <b>Science Fair</b>
+                <span style="color:#666">March 1, 2026</span>
+              </div>
+              <div class="event-img" style="background-image: url('https://images.unsplash.com/photo-1564939558297-fc80cd1102f3?auto=format&fit=crop&w=600&q=80')"></div>
+            </div>
           </div>
         </section>
 
@@ -68,7 +70,7 @@
             <span>🗓️</span> CALENDAR & HIGHLIGHTS
           </div>
           <div class="card-body" id="media-content">
-            <!-- Dynamic Content -->
+            <div style="text-align:center; color:#4a5568;">Loading calendar…</div>
           </div>
         </section>
       </div>

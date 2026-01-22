@@ -489,37 +489,7 @@ async function renderDashboard() {
     `).join('');
   }
 
-  const facultyContainer = document.getElementById('faculty-status');
-  if (facultyContainer) {
-    const off = await fetchConfig('officeInfo') || data.officeInfo;
-    const fs = await fetchConfig('facilityStatus') || data.facilityStatus;
-    facultyContainer.innerHTML = `
-      <div class="list-item" style="padding:6px 8px; gap:4px;">
-        <h3 style="font-size:0.95rem;">Registrar</h3>
-        <p style="font-size:0.85rem; color:#4a5568;">${off.registrarHours}</p>
-      </div>
-      <div class="list-item" style="padding:6px 8px; gap:4px;">
-        <h3 style="font-size:0.95rem;">Clinic</h3>
-        <p style="font-size:0.85rem; color:#4a5568;">${off.clinicStatus}</p>
-      </div>
-      <div class="list-item" style="padding:6px 8px; gap:4px;">
-        <h3 style="font-size:0.95rem;">Guidance</h3>
-        <p style="font-size:0.85rem; color:#4a5568;">${off.guidanceAvailability}</p>
-      </div>
-      <div class="list-item" style="padding:6px 8px; gap:4px;">
-        <h3 style="font-size:0.95rem;">Library</h3>
-        <p style="font-size:0.85rem; color:#4a5568;">${fs.library}</p>
-      </div>
-      <div class="list-item" style="padding:6px 8px; gap:4px;">
-        <h3 style="font-size:0.95rem;">Canteen</h3>
-        <p style="font-size:0.85rem; color:#4a5568;">${fs.canteen}</p>
-      </div>
-      <div class="list-item" style="padding:6px 8px; gap:4px;">
-        <h3 style="font-size:0.95rem;">Laboratory</h3>
-        <p style="font-size:0.85rem; color:#4a5568;">${fs.laboratory}</p>
-      </div>
-    `;
-  }
+  // Faculty status removed from dashboard; accessible via voice only
 
   // Render Media/Highlight
   const mediaContainer = document.getElementById('media-content');
@@ -534,23 +504,25 @@ async function renderDashboard() {
       const d = new Date(dstr);
       return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     };
-    const days = [];
     const totalDays = monthEnd.getDate();
-    for (let i=1;i<=totalDays;i++) days.push(i);
     const evDays = evsAll.map(e => parseDay(e.date)).filter(d => d.getMonth() === now.getMonth());
     const annDays = annsAll.map(a => parseDay(a.date)).filter(d => d.getMonth() === now.getMonth());
     const firstDay = monthStart.getDay();
     const grid = [];
     for (let i=0;i<firstDay;i++) grid.push('');
     for (let i=1;i<=totalDays;i++) grid.push(i);
+    const rows = Math.ceil(grid.length / 7);
+    const gap = 6;
+    const H = mediaContainer.clientHeight || 240;
+    const cellH = Math.max(40, Math.floor((H - gap*(rows-1)) / rows));
     mediaContainer.innerHTML = `
-      <div style="display:grid; grid-template-columns: repeat(7, 1fr); gap:6px;">
+      <div style="display:grid; grid-template-columns: repeat(7, 1fr); gap:${gap}px;">
         ${grid.map(d => {
-          if (d==='') return `<div style="height:60px; background:#f7fafc; border-radius:6px;"></div>`;
+          if (d==='') return `<div style="height:${cellH}px; background:#f7fafc; border-radius:6px;"></div>`;
           const hasE = evDays.some(x => x.getDate() === d);
           const hasA = annDays.some(x => x.getDate() === d);
           const bg = hasE && hasA ? '#fed7d7' : hasE ? '#c6f6d5' : hasA ? '#bee3f8' : '#edf2f7';
-          return `<div style="height:60px; border-radius:6px; background:${bg}; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#2d3748;">${d}</div>`;
+          return `<div style="height:${cellH}px; border-radius:6px; background:${bg}; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#2d3748;">${d}</div>`;
         }).join('')}
       </div>
       <div style="margin-top:8px; font-size:0.85rem; color:#4a5568;">Green: Events • Blue: Announcements • Red: Both</div>
@@ -698,7 +670,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const annHead = document.getElementById('announcements-header');
     const eventsHead = document.getElementById('events-header');
     const teachersHead = document.getElementById('teachers-header');
-    const facultyHead = document.getElementById('faculty-header');
     const calHead = document.getElementById('calendar-header');
     if (annHead) annHead.addEventListener('click', async () => {
       const anns = await fetchAnnouncements(200);
@@ -714,19 +685,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const tchs = await fetchTeachers(200);
       const html = tchs.map(s => `<div style="padding:6px 8px;"><b>${s.name}</b><div style="color:#4a5568; font-size:0.85rem;">${s.availability}</div></div>`).join('');
       showModal('Teachers Availability', html);
-    });
-    if (facultyHead) facultyHead.addEventListener('click', async () => {
-      const off = await fetchConfig('officeInfo') || getData().officeInfo;
-      const fs = await fetchConfig('facilityStatus') || getData().facilityStatus;
-      const html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-        <div><b>Registrar:</b> ${off.registrarHours}</div>
-        <div><b>Clinic:</b> ${off.clinicStatus}</div>
-        <div><b>Guidance:</b> ${off.guidanceAvailability}</div>
-        <div><b>Library:</b> ${fs.library}</div>
-        <div><b>Canteen:</b> ${fs.canteen}</div>
-        <div><b>Laboratory:</b> ${fs.laboratory}</div>
-      </div>`;
-      showModal('Faculty Status', html);
     });
     if (calHead) calHead.addEventListener('click', async () => {
       const anns = await fetchAnnouncements(200);
