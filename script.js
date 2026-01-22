@@ -356,20 +356,30 @@ async function handleVoice(text) {
 
   if (/^(show|open)\s+(office|office information)/.test(t) || t.includes('registrar') || t.includes('clinic') || t.includes('guidance')) {
     const off = await fetchConfig('officeInfo') || data.officeInfo;
-    return showOverlay('Office Information', `
-      <div><b>Registrar Hours:</b> ${off.registrarHours}</div>
-      <div><b>Clinic Status:</b> ${off.clinicStatus}</div>
-      <div><b>Guidance Availability:</b> ${off.guidanceAvailability}</div>
-    `);
-  }
-
-  if (t.includes('library') || t.includes('canteen') || t.includes('laboratory') || t.includes('facility')) {
     const fs = await fetchConfig('facilityStatus') || data.facilityStatus;
-    return showOverlay('Facility Status', `
+    const html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div><b>Registrar:</b> ${off.registrarHours}</div>
+      <div><b>Clinic:</b> ${off.clinicStatus}</div>
+      <div><b>Guidance:</b> ${off.guidanceAvailability}</div>
       <div><b>Library:</b> ${fs.library}</div>
       <div><b>Canteen:</b> ${fs.canteen}</div>
       <div><b>Laboratory:</b> ${fs.laboratory}</div>
-    `);
+    </div>`;
+    return showModal('Faculty Status', html);
+  }
+
+  if (t.includes('library') || t.includes('canteen') || t.includes('laboratory') || t.includes('facility')) {
+    const off = await fetchConfig('officeInfo') || data.officeInfo;
+    const fs = await fetchConfig('facilityStatus') || data.facilityStatus;
+    const html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div><b>Registrar:</b> ${off.registrarHours}</div>
+      <div><b>Clinic:</b> ${off.clinicStatus}</div>
+      <div><b>Guidance:</b> ${off.guidanceAvailability}</div>
+      <div><b>Library:</b> ${fs.library}</div>
+      <div><b>Canteen:</b> ${fs.canteen}</div>
+      <div><b>Laboratory:</b> ${fs.laboratory}</div>
+    </div>`;
+    return showModal('Faculty Status', html);
   }
 
   if (t.includes('room')) {
@@ -383,13 +393,15 @@ async function handleVoice(text) {
   }
 
   if (t.includes('full announcement') || t.includes('show announcements') || t.includes('announcements list') || t.includes('announcement')) {
-    const anns = await fetchAnnouncements(50);
-    return showOverlay('Announcements', anns.slice(0,8).map(a => `<div><b>${a.title}</b> — ${a.time} • ${a.date}</div>`).join(''));
+    const anns = await fetchAnnouncements(200);
+    const html = anns.map(a => `<div style="padding:6px 8px;"><b>${a.title}</b><div style="color:#4a5568; font-size:0.85rem;">${a.time} • ${a.date}</div></div>`).join('');
+    return showModal('Announcements', html);
   }
 
-  if (t.includes('schedule') || t.includes('daily schedule') || t.includes('weekly schedule')) {
-    const schs = await fetchSchedules(50);
-    return showOverlay('Daily Schedule', schs.slice(0,8).map(s => `<div><b>${s.title}</b> — ${s.time}</div>`).join(''));
+  if (t.includes('teacher') || t.includes('teachers availability') || t.includes('availability')) {
+    const tchs = await fetchTeachers(200);
+    const html = tchs.map(s => `<div style="padding:6px 8px;"><b>${s.name}</b><div style="color:#4a5568; font-size:0.85rem;">${s.availability}</div></div>`).join('');
+    return showModal('Teachers Availability', html);
   }
 
   if (t.includes('event')) {
@@ -404,12 +416,15 @@ async function handleVoice(text) {
       };
       evs = evsAll.filter(inRange);
     }
-    if (evs.length === 0) {
-      const fallback = evsAll.slice(0,6);
-      if (fallback.length === 0) return showOverlay('Upcoming Events', '<div>No events found.</div>');
-      return showOverlay('Upcoming Events', fallback.map(e => `<div><b>${e.title}</b> — ${e.date}</div>`).join(''));
-    }
-    return showOverlay('Upcoming Events', evs.slice(0,6).map(e => `<div><b>${e.title}</b> — ${e.date}</div>`).join(''));
+    const html = (evs.length ? evs : evsAll).map(e => `<div style="display:flex; gap:10px; padding:8px 0; align-items:center;"><div style="width:80px; height:60px; background-image:url('${e.image}'); background-size:cover; background-position:center; border-radius:6px;"></div><div><div style="font-weight:bold;">${e.title}</div><div style="color:#4a5568; font-size:0.85rem;">${e.date}</div></div></div>`).join('');
+    return showModal('Upcoming Events', html);
+  }
+
+  if (t.includes('calendar')) {
+    const anns = await fetchAnnouncements(200);
+    const evs = await fetchEvents(200);
+    const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${evs.map(e => `<div>${e.title} — ${e.date}</div>`).join('')}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${anns.map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('')}</div>`;
+    return showModal('Calendar & Highlights', html);
   }
 
   if (t.includes('qr')) {
@@ -436,7 +451,7 @@ async function renderDashboard() {
       const dt = new Date(dstr + ' ' + (a.time || ''));
       return { ...a, _ts: dt.getTime() || 0 };
     };
-    const anns = annsRaw.map(parseAnn).sort((x,y) => x._ts - y._ts).slice(0, 6);
+    const anns = annsRaw.map(parseAnn).sort((x,y) => x._ts - y._ts).slice(0, 2);
     annContainer.innerHTML = anns.map(a => `
       <div class="list-item" style="padding:6px 8px; gap:4px;">
         <h3 style="font-size:0.95rem;">${a.title}</h3>
@@ -480,9 +495,9 @@ async function renderDashboard() {
   // Render Schedule
   const scheduleContainer = document.getElementById('schedule-list');
   if (scheduleContainer) {
-    const tchs = await fetchTeachers(8);
+    const tchs = await fetchTeachers(3);
     scheduleContainer.innerHTML = tchs.map(s => `
-      <div class="list-item" style="border-left-color: var(--primary-green); padding:6px 8px; gap:4px;">
+      <div class="list-item" style="padding:6px 8px; gap:4px;">
         <h3 style="font-size:0.95rem;">${s.name}</h3>
         <p style="font-size:0.85rem; color:#4a5568;">${s.availability}</p>
       </div>
@@ -516,7 +531,7 @@ async function renderDashboard() {
     const H = mediaContainer.clientHeight || 240;
     const cellH = Math.max(40, Math.floor((H - gap*(rows-1)) / rows));
     mediaContainer.innerHTML = `
-      <div style="display:grid; grid-template-columns: repeat(7, 1fr); gap:${gap}px;">
+      <div style="display:grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(${rows}, ${cellH}px); gap:${gap}px;">
         ${grid.map(d => {
           if (d==='') return `<div style="height:${cellH}px; background:#f7fafc; border-radius:6px;"></div>`;
           const hasE = evDays.some(x => x.getDate() === d);
