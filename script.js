@@ -192,10 +192,10 @@ async function saveConfigDocs(payload) {
   const db = getFirestoreDB();
   if (db) {
     try {
-      await db.collection('config').doc('ticker').set({ text: payload.ticker });
-      await db.collection('config').doc('media').set(payload.media);
-      await db.collection('config').doc('officeInfo').set(payload.officeInfo);
-      await db.collection('config').doc('facilityStatus').set(payload.facilityStatus);
+      if (payload.ticker !== undefined) await db.collection('config').doc('ticker').set({ text: payload.ticker });
+      if (payload.media !== undefined) await db.collection('config').doc('media').set(payload.media);
+      if (payload.officeInfo !== undefined) await db.collection('config').doc('officeInfo').set(payload.officeInfo);
+      if (payload.facilityStatus !== undefined) await db.collection('config').doc('facilityStatus').set(payload.facilityStatus);
     } catch {}
   }
   const current = getData();
@@ -214,6 +214,27 @@ async function addRoom(name, status) {
   }
   await db.collection('rooms').add({ name, status, createdAt: new Date().toISOString() });
   await logInfo('room_add', { name, status });
+}
+
+async function clearDatabase() {
+  const db = getFirestoreDB();
+  if (!db) { alert('Database not configured'); return; }
+  const colls = ['announcements','events','schedules','teachers','rooms'];
+  for (const c of colls) {
+    try {
+      const snap = await db.collection(c).get();
+      for (const d of snap.docs) {
+        try { await d.ref.delete(); } catch {}
+      }
+    } catch {}
+  }
+  try { await db.collection('config').doc('ticker').delete(); } catch {}
+  try { await db.collection('config').doc('media').delete(); } catch {}
+  try { await db.collection('config').doc('officeInfo').delete(); } catch {}
+  try { await db.collection('config').doc('facilityStatus').delete(); } catch {}
+  try { localStorage.removeItem('flexiData'); } catch {}
+  await logInfo('db_clear', {});
+  alert('Database cleaned');
 }
 
 async function fetchRooms() {
@@ -454,14 +475,7 @@ async function handleVoice(text) {
   }
 
   if (t.includes('qr')) {
-    const mediaCfg = await fetchConfig('media') || data.media;
-    const label = mediaCfg.value || 'FlexiSystem';
-    return showOverlay('QR Code', `
-      <div style="text-align:center">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(label)}" class="qr-code" alt="QR">
-        <div style="margin-top:8px; font-weight:bold;">${label}</div>
-      </div>
-    `);
+    return showOverlay('Voice Commands', commandsHTML());
   }
 
   return showOverlay('Voice Commands', commandsHTML());
@@ -662,8 +676,8 @@ async function renderAdmin() {
   if (scheduleInput) scheduleInput.value = JSON.stringify(data.schedules, null, 2);
   const mediaType = document.getElementById('media-type');
   const mediaValue = document.getElementById('media-value');
-  if (mediaType) mediaType.value = data.media.type;
-  if (mediaValue) mediaValue.value = data.media.value;
+  if (mediaType) mediaType.disabled = true;
+  if (mediaValue) mediaValue.disabled = true;
   const registrarHours = document.getElementById('registrar-hours');
   const clinicStatus = document.getElementById('clinic-status');
   const guidanceAvailability = document.getElementById('guidance-availability');
@@ -880,7 +894,6 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const newData = {
           ticker: document.getElementById('ticker-input').value,
-          media: { type: document.getElementById('media-type').value, value: document.getElementById('media-value').value },
           officeInfo: {
             registrarHours: document.getElementById('registrar-hours').value,
             clinicStatus: document.getElementById('clinic-status').value,
@@ -892,18 +905,21 @@ document.addEventListener('DOMContentLoaded', () => {
             laboratory: document.getElementById('laboratory-status').value
           }
         };
-        const mfileEl = document.getElementById('media-image-file');
-        const mfile = mfileEl && mfileEl.files && mfileEl.files[0];
-        if (mfile) {
-          newData.media.type = 'image';
-          const url = await compressImageToDataURL(mfile);
-          if (url) newData.media.value = url;
-        }
         await saveConfigDocs(newData);
         alert('Settings Saved');
       } catch (e) {
         alert('Invalid data');
       }
+    });
+    const cleanBtn = document.getElementById('clean-db-btn');
+    if (cleanBtn) cleanBtn.addEventListener('click', async () => {
+      const ok = confirm('This will delete all announcements, events, teachers, schedules, rooms and reset config. Continue?');
+      if (!ok) return;
+      await clearDatabase();
+      const a = document.getElementById('announcements-admin-list'); if (a) a.innerHTML = '';
+      const e = document.getElementById('events-admin-list'); if (e) e.innerHTML = '';
+      const t = document.getElementById('teachers-admin-list'); if (t) t.innerHTML = '';
+      const r = document.getElementById('rooms-admin-list'); if (r) r.innerHTML = '';
     });
   }
 });
