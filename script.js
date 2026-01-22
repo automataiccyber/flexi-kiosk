@@ -533,10 +533,10 @@ async function renderDashboard() {
     for (let i=0;i<firstDay;i++) grid.push('');
     for (let i=1;i<=totalDays;i++) grid.push(i);
     const rows = Math.ceil(grid.length / 7);
-    const gap = 6;
+    const gap = 4;
     mediaContainer.innerHTML = `
-      <div style="display:grid; grid-template-rows: 1fr auto; height:100%;">
-        <div style="display:grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(${rows}, 1fr); gap:${gap}px;">
+      <div style="display:grid; grid-template-rows: minmax(0,1fr) auto; height:100%; min-height:0;">
+        <div style="display:grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(${rows}, minmax(0,1fr)); gap:${gap}px; min-height:0;">
           ${grid.map(d => {
             if (d==='') return `<div style="background:#f7fafc; border-radius:6px;"></div>`;
             const hasE = evDays.some(x => x.getDate() === d);
@@ -545,7 +545,7 @@ async function renderDashboard() {
             return `<div style="border-radius:6px; background:${bg}; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#2d3748;">${d}</div>`;
           }).join('')}
         </div>
-        <div style="margin-top:8px; font-size:0.85rem; color:#4a5568;">Green: Events • Blue: Announcements • Red: Both</div>
+        <div style="margin-top:6px; font-size:0.8rem; color:#4a5568;">Green: Events • Blue: Announcements • Red: Both</div>
       </div>
     `;
   }
