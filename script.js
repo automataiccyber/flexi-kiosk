@@ -175,6 +175,19 @@ async function addSchedule(title, start, end) {
   await logInfo('schedule_add', { title, time });
 }
 
+async function addTeacher(name, availability) {
+  const db = getFirestoreDB();
+  const doc = { name, availability, createdAt: new Date().toISOString() };
+  if (db) {
+    try { await db.collection('teachers').add(doc); } catch {}
+  }
+  const data = getData();
+  const list = Array.isArray(data.teachers) ? data.teachers : [];
+  list.unshift({ name, availability });
+  saveData({ ...data, teachers: list });
+  await logInfo('teacher_add', { name, availability });
+}
+
 async function saveConfigDocs(payload) {
   const db = getFirestoreDB();
   if (db) {
@@ -456,8 +469,27 @@ async function handleVoice(text) {
 // --- Dashboard Render Logic ---
 async function renderDashboard() {
   const data = getData();
+  const db = getFirestoreDB();
   const annContainer = document.getElementById('announcements-list');
-  if (annContainer) {
+  if (annContainer && db) {
+    try {
+      db.collection('announcements').orderBy('createdAt','desc').limit(50).onSnapshot((snap) => {
+        const annsRaw = snap.docs.map(d => d.data());
+        const parseAnn = (a) => {
+          const dstr = (a.date || '').replace(/\,/g,'');
+          const dt = new Date(dstr + ' ' + (a.time || ''));
+          return { ...a, _ts: dt.getTime() || 0 };
+        };
+        const anns = annsRaw.map(parseAnn).sort((x,y) => x._ts - y._ts).slice(0, 2);
+        annContainer.innerHTML = anns.map(a => `
+          <div class="list-item" style="padding:6px 8px; gap:4px;">
+            <h3 style="font-size:0.95rem;">${a.title}</h3>
+            <p style="font-size:0.85rem; color:#4a5568;">${a.time} • ${a.date}</p>
+          </div>
+        `).join('');
+      });
+    } catch {}
+  } else if (annContainer) {
     try {
       const annsRaw = await fetchAnnouncements(50).catch(() => getData().announcements || []);
       const parseAnn = (a) => {
@@ -477,7 +509,39 @@ async function renderDashboard() {
 
   // Render Upcoming Events
   const eventsContainer = document.getElementById('events-list');
-  if (eventsContainer) {
+  if (eventsContainer && db) {
+    try {
+      db.collection('events').orderBy('createdAt','desc').limit(50).onSnapshot((snap) => {
+        const evsAll = snap.docs.map(d => d.data());
+        const parseEv = (e) => {
+          const dstr = (e.date || '').replace(/\,/g,'');
+          const dt = new Date(dstr);
+          return { ...e, _ts: dt.getTime() || 0 };
+        };
+        const evs = evsAll.map(parseEv).sort((x,y) => x._ts - y._ts);
+        eventsContainer.innerHTML = `
+          <div id="events-slide" style="width:100%; height:100%; border-radius:8px; background-size:cover; background-position:center; display:flex; align-items:flex-end;">
+            <div id="events-slide-caption" style="width:100%; background:rgba(0,0,0,0.45); color:#fff; padding:8px 10px; border-radius:0 0 8px 8px; font-weight:bold;"></div>
+          </div>
+        `;
+        let idx = 0;
+        const setSlide = () => {
+          if (evs.length === 0) return;
+          const cur = evs[idx % evs.length];
+          const el = document.getElementById('events-slide');
+          const cap = document.getElementById('events-slide-caption');
+          if (el && cap) {
+            el.style.backgroundImage = `url('${cur.image}')`;
+            cap.textContent = `${cur.title} — ${cur.date}`;
+          }
+          idx++;
+        };
+        setSlide();
+        clearInterval(window._eventsSlideTimer);
+        window._eventsSlideTimer = setInterval(setSlide, 5000);
+      });
+    } catch {}
+  } else if (eventsContainer) {
     try {
       const evsAll = await fetchEvents(50).catch(() => getData().events || []);
       const parseEv = (e) => {
@@ -511,7 +575,19 @@ async function renderDashboard() {
 
   // Render Schedule
   const scheduleContainer = document.getElementById('schedule-list');
-  if (scheduleContainer) {
+  if (scheduleContainer && db) {
+    try {
+      db.collection('teachers').orderBy('createdAt','desc').limit(50).onSnapshot((snap) => {
+        const tchs = snap.docs.map(d => d.data()).slice(0,3);
+        scheduleContainer.innerHTML = tchs.map(s => `
+          <div class="list-item" style="padding:6px 8px; gap:4px;">
+            <h3 style="font-size:0.95rem;">${s.name}</h3>
+            <p style="font-size:0.85rem; color:#4a5568;">${s.availability}</p>
+          </div>
+        `).join('');
+      });
+    } catch {}
+  } else if (scheduleContainer) {
     try {
       const tchs = await fetchTeachers(3).catch(() => getData().schedules || []);
       scheduleContainer.innerHTML = tchs.map(s => `
@@ -607,11 +683,11 @@ async function renderAdmin() {
       <div class="list-item"><h3>${e.title}</h3><p>${e.date}</p></div>
     `).join('');
   }
-  const scheduleAdmin = document.getElementById('schedule-admin-list');
-  if (scheduleAdmin) {
-    const schAll = await fetchSchedules(50);
-    scheduleAdmin.innerHTML = schAll.map(s => `
-      <div class="list-item"><h3>${s.title}</h3><p>${s.time}</p></div>
+  const teachersAdmin = document.getElementById('teachers-admin-list');
+  if (teachersAdmin) {
+    const tchsAll = await fetchTeachers(50);
+    teachersAdmin.innerHTML = tchsAll.map(s => `
+      <div class="list-item"><h3>${s.name}</h3><p>${s.availability}</p></div>
     `).join('');
   }
   const roomsAdmin = document.getElementById('rooms-admin-list');
@@ -770,22 +846,20 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('event-date').value = '';
       if (fileEl) fileEl.value = '';
     });
-    const schAddBtn = document.getElementById('sch-add-btn');
-    if (schAddBtn) schAddBtn.addEventListener('click', async () => {
-      const title = document.getElementById('sch-title').value.trim();
-      const start = document.getElementById('sch-start').value.trim();
-      const end = document.getElementById('sch-end').value.trim();
-      if (!title || !start || !end) return;
-      await addSchedule(title, start, end);
-      if (document.getElementById('schedule-admin-list')) {
-        const schAll = await fetchSchedules(50);
-        document.getElementById('schedule-admin-list').innerHTML = schAll.map(s => `
-          <div class="list-item"><h3>${s.title}</h3><p>${s.time}</p></div>
+    const teacherAddBtn = document.getElementById('teacher-add-btn');
+    if (teacherAddBtn) teacherAddBtn.addEventListener('click', async () => {
+      const name = document.getElementById('teacher-name').value.trim();
+      const availability = document.getElementById('teacher-availability').value.trim();
+      if (!name || !availability) return;
+      await addTeacher(name, availability);
+      if (document.getElementById('teachers-admin-list')) {
+        const tchsAll = await fetchTeachers(50);
+        document.getElementById('teachers-admin-list').innerHTML = tchsAll.map(s => `
+          <div class="list-item"><h3>${s.name}</h3><p>${s.availability}</p></div>
         `).join('');
       }
-      document.getElementById('sch-title').value = '';
-      document.getElementById('sch-start').value = '';
-      document.getElementById('sch-end').value = '';
+      document.getElementById('teacher-name').value = '';
+      document.getElementById('teacher-availability').value = '';
     });
     const roomAddBtn = document.getElementById('room-add-btn');
     if (roomAddBtn) roomAddBtn.addEventListener('click', async () => {
