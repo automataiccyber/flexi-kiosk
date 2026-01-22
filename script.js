@@ -541,11 +541,13 @@ async function renderDashboard() {
             if (d==='') return `<div style="background:#f7fafc; border-radius:6px;"></div>`;
             const hasE = evDays.some(x => x.getDate() === d);
             const hasA = annDays.some(x => x.getDate() === d);
-            const bg = hasE && hasA ? '#fed7d7' : hasE ? '#c6f6d5' : hasA ? '#bee3f8' : '#edf2f7';
-            return `<div style="border-radius:6px; background:${bg}; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#2d3748;">${d}</div>`;
+            const both = hasE && hasA;
+            const bgColor = hasE ? '#c6f6d5' : hasA ? '#bee3f8' : '#edf2f7';
+            const bgStyle = both ? 'background-image:linear-gradient(to right, #c6f6d5 50%, #bee3f8 50%);' : `background:${bgColor};`;
+            return `<div style="border-radius:6px; ${bgStyle} display:flex; align-items:center; justify-content:center; font-weight:bold; color:#2d3748;">${d}</div>`;
           }).join('')}
         </div>
-        <div style="margin-top:6px; font-size:0.8rem; color:#4a5568;"><span style="color:#2f855a; font-weight:600;">Events</span> • <span style="color:#2b6cb0; font-weight:600;">Announcements</span> • <span style="color:#c53030; font-weight:600;">Both</span></div>
+        <div style="margin-top:6px; font-size:0.8rem; color:#4a5568;"><span style="color:#2f855a; font-weight:600;">Events</span> • <span style="color:#2b6cb0; font-weight:600;">Announcements</span></div>
       </div>
     `;
   }
