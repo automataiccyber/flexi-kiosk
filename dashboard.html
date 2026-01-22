@@ -119,5 +119,26 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="script.js"></script>
+  <script>
+    (function(){
+      var el = document.getElementById('db-indicator');
+      if (!el) return;
+      try {
+        if (!window.FIREBASE_CONFIG || !window.FIREBASE_CONFIG.projectId) {
+          el.textContent = 'Missing firebase-config.js or projectId';
+          el.style.color = '#c53030';
+          return;
+        }
+        if (!window.firebase || !firebase.firestore) {
+          el.textContent = 'Firebase SDK not loaded';
+          el.style.color = '#c53030';
+          return;
+        }
+      } catch(e) {
+        el.textContent = 'Initialization error';
+        el.style.color = '#c53030';
+      }
+    })();
+  </script>
 </body>
 </html>
