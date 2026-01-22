@@ -7,7 +7,11 @@ function getFirestoreDB() {
     if (!window.FIREBASE_CONFIG || !window.FIREBASE_CONFIG.apiKey) return null;
     if (!window._firebaseApp) {
       window._firebaseApp = firebase.initializeApp(window.FIREBASE_CONFIG);
-      try { if (firebase.auth) firebase.auth().signInAnonymously().catch(() => {}); } catch {}
+      try {
+        if (firebase.appCheck && window.FIREBASE_RECAPTCHA_KEY) {
+          firebase.appCheck().activate(window.FIREBASE_RECAPTCHA_KEY, true);
+        }
+      } catch {}
       window._db = firebase.firestore();
     }
     return window._db || null;
