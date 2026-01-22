@@ -1,55 +1,6 @@
-// --- Mock Data Initialization ---
-const defaultData = {
-  announcements: [
-    { title: "Flag Ceremony", date: "Feb 20, 2026", time: "7:00 AM" },
-    { title: "Student Council Meeting", date: "Feb 20, 2026", time: "10:00 AM" },
-    { title: "Library Closed", date: "Feb 21, 2026", time: "All Day" },
-    { title: "Extra Announcement", date: "Feb 22, 2026", time: "1:00 PM" }
-  ],
-  events: [
-    { title: "Science Fair", date: "March 1, 2026", image: "https://images.unsplash.com/photo-1564939558297-fc80cd1102f3?auto=format&fit=crop&w=600&q=80" },
-    { title: "Sports Fest", date: "March 5, 2026", image: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=600&q=80" }
-  ],
-  schedules: [
-    { title: "Math Class", time: "08:00 AM - 09:30 AM" },
-    { title: "Recess", time: "09:30 AM - 10:00 AM" },
-    { title: "Physics Lab", time: "10:00 AM - 11:30 AM" }
-  ],
-  teachers: [
-    { name: "Mr. Santos", availability: "08:00 AM - 12:00 PM" },
-    { name: "Ms. Reyes", availability: "01:00 PM - 05:00 PM" },
-    { name: "Dr. Cruz", availability: "On Leave" }
-  ],
-  media: {
-    type: "qr",
-    value: "Scan for Updates"
-  },
-  officeInfo: {
-    registrarHours: "8:00 AM - 5:00 PM",
-    clinicStatus: "Open",
-    guidanceAvailability: "Available"
-  },
-  facilityStatus: {
-    library: "Open",
-    canteen: "Open",
-    laboratory: "Available"
-  },
-  roomAvailability: [
-    { name: "Room 101", status: "Free" },
-    { name: "Room 102", status: "Occupied" }
-  ],
-  ticker: "Welcome to Flexi Kiosk System. Please check announcements regularly.  |  Reminder: Submit permission slips by Friday."
-};
-
-// --- Storage Helper ---
-function getData() {
-  const stored = localStorage.getItem('flexiData');
-  return stored ? JSON.parse(stored) : defaultData;
-}
-
-function saveData(data) {
-  localStorage.setItem('flexiData', JSON.stringify(data));
-}
+// --- Storage Helper (Firebase-only, no local storage) ---
+function getData() { return {}; }
+function saveData(_) { /* no-op: use Firestore only */ }
 
 function getFirestoreDB() {
   try {
@@ -83,10 +34,6 @@ async function logInfo(type, details) {
     const db = getFirestoreDB();
     const doc = { type, details, ts: new Date().toISOString(), ua: (navigator && navigator.userAgent) || '' };
     if (db) { try { await db.collection('logs').add(doc); } catch {} }
-    const cur = getData();
-    const logs = Array.isArray(cur.logs) ? cur.logs : [];
-    logs.unshift(doc);
-    saveData({ ...cur, logs });
   } catch {}
 }
 
@@ -100,7 +47,7 @@ async function fetchAnnouncements(limitCount = 3) {
     if (!rows || rows.length === 0) throw new Error('empty');
     return rows;
   } catch {
-    return getData().announcements.slice(0, limitCount);
+    return [];
   }
 }
 
@@ -110,9 +57,6 @@ async function addAnnouncement(title, date, time) {
   if (db) {
     try { await db.collection('announcements').add(doc); } catch {}
   }
-  const data = getData();
-  data.announcements.unshift({ title, date, time });
-  saveData(data);
   await logInfo('announcement_add', { title, date, time });
 }
 
@@ -125,7 +69,7 @@ async function fetchEvents(limitCount = 1) {
     if (!rows || rows.length === 0) throw new Error('empty');
     return rows;
   } catch {
-    return getData().events.slice(0, limitCount);
+    return [];
   }
 }
 
@@ -136,9 +80,6 @@ async function addEvent(title, date, image) {
   if (db) {
     try { await db.collection('events').add(doc); } catch {}
   }
-  const data = getData();
-  data.events.unshift({ title, date: displayDate, image });
-  saveData(data);
   await logInfo('event_add', { title, date: displayDate });
 }
 
@@ -151,7 +92,7 @@ async function fetchSchedules(limitCount = 2) {
     if (!rows || rows.length === 0) throw new Error('empty');
     return rows;
   } catch {
-    return getData().schedules.slice(0, limitCount);
+    return [];
   }
 }
 
@@ -164,7 +105,7 @@ async function fetchTeachers(limitCount = 8) {
     if (!rows || rows.length === 0) throw new Error('empty');
     return rows;
   } catch {
-    return getData().teachers.slice(0, limitCount);
+    return [];
   }
 }
 
@@ -179,10 +120,7 @@ async function addSchedule(title, start, end) {
   const db = getFirestoreDB();
   const time = `${to12h(start)} - ${to12h(end)}`;
   if (!db) {
-    const data = getData();
-    data.schedules.unshift({ title, time });
-    saveData(data);
-    await logInfo('schedule_add', { title, time });
+    alert('Firestore not connected');
     return;
   }
   await db.collection('schedules').add({ title, time, createdAt: new Date().toISOString() });
@@ -195,10 +133,6 @@ async function addTeacher(name, availability) {
   if (db) {
     try { await db.collection('teachers').add(doc); } catch {}
   }
-  const data = getData();
-  const list = Array.isArray(data.teachers) ? data.teachers : [];
-  list.unshift({ name, availability });
-  saveData({ ...data, teachers: list });
   await logInfo('teacher_add', { name, availability });
 }
 
@@ -212,17 +146,12 @@ async function saveConfigDocs(payload) {
       if (payload.facilityStatus !== undefined) await db.collection('config').doc('facilityStatus').set(payload.facilityStatus);
     } catch {}
   }
-  const current = getData();
-  saveData({ ...current, ...payload });
   await logInfo('config_save', { keys: Object.keys(payload) });
 }
 
 async function addRoom(name, status) {
   const db = getFirestoreDB();
   if (!db) {
-    const data = getData();
-    data.roomAvailability.unshift({ name, status });
-    saveData(data);
     await logInfo('room_add', { name, status });
     return;
   }
@@ -260,7 +189,7 @@ async function fetchRooms() {
     if (!rows || rows.length === 0) throw new Error('empty');
     return rows;
   } catch {
-    return getData().roomAvailability;
+    return [];
   }
 }
 
@@ -272,9 +201,6 @@ async function fetchConfig(name) {
     if (!doc.exists) throw new Error('empty');
     return doc.data();
   } catch {
-    const data = getData();
-    if (name === 'ticker') return { text: data.ticker };
-    if (name === 'media') return data.media;
     return null;
   }
 }
@@ -412,8 +338,8 @@ async function handleVoice(text) {
   }
 
   if (/^(show|open)\s+(office|office information)/.test(t) || t.includes('registrar') || t.includes('clinic') || t.includes('guidance')) {
-    const off = await fetchConfig('officeInfo') || data.officeInfo;
-    const fs = await fetchConfig('facilityStatus') || data.facilityStatus;
+    const off = await fetchConfig('officeInfo') || {};
+    const fs = await fetchConfig('facilityStatus') || {};
     const html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
       <div><b>Registrar:</b> ${off.registrarHours}</div>
       <div><b>Clinic:</b> ${off.clinicStatus}</div>
@@ -426,8 +352,8 @@ async function handleVoice(text) {
   }
 
   if (t.includes('library') || t.includes('canteen') || t.includes('laboratory') || t.includes('facility')) {
-    const off = await fetchConfig('officeInfo') || data.officeInfo;
-    const fs = await fetchConfig('facilityStatus') || data.facilityStatus;
+    const off = await fetchConfig('officeInfo') || {};
+    const fs = await fetchConfig('facilityStatus') || {};
     const html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
       <div><b>Registrar:</b> ${off.registrarHours}</div>
       <div><b>Clinic:</b> ${off.clinicStatus}</div>
@@ -518,21 +444,7 @@ async function renderDashboard() {
       });
     } catch {}
   } else if (annContainer) {
-    try {
-      const annsRaw = await fetchAnnouncements(50).catch(() => getData().announcements || []);
-      const parseAnn = (a) => {
-        const dstr = (a.date || '').replace(/\,/g,'');
-        const dt = new Date(dstr + ' ' + (a.time || ''));
-        return { ...a, _ts: dt.getTime() || 0 };
-      };
-      const anns = annsRaw.map(parseAnn).sort((x,y) => x._ts - y._ts).slice(0, 2);
-      annContainer.innerHTML = anns.map(a => `
-        <div class="list-item" style="padding:6px 8px; gap:4px;">
-          <h3 style="font-size:0.95rem;">${a.title}</h3>
-          <p style="font-size:0.85rem; color:#4a5568;">${a.time} • ${a.date}</p>
-        </div>
-      `).join('');
-    } catch {}
+    annContainer.innerHTML = '<div class="list-item" style="padding:6px 8px;">Connect to Firestore to load announcements.</div>';
   }
 
   // Render Upcoming Events
@@ -570,35 +482,7 @@ async function renderDashboard() {
       });
     } catch {}
   } else if (eventsContainer) {
-    try {
-      const evsAll = await fetchEvents(50).catch(() => getData().events || []);
-      const parseEv = (e) => {
-        const dstr = (e.date || '').replace(/\,/g,'');
-        const dt = new Date(dstr);
-        return { ...e, _ts: dt.getTime() || 0 };
-      };
-      const evs = evsAll.map(parseEv).sort((x,y) => x._ts - y._ts);
-      eventsContainer.innerHTML = `
-        <div id="events-slide" style="width:100%; height:100%; border-radius:8px; background-size:cover; background-position:center; display:flex; align-items:flex-end;">
-          <div id="events-slide-caption" style="width:100%; background:rgba(0,0,0,0.45); color:#fff; padding:8px 10px; border-radius:0 0 8px 8px; font-weight:bold;"></div>
-        </div>
-      `;
-      let idx = 0;
-      const setSlide = () => {
-        if (evs.length === 0) return;
-        const cur = evs[idx % evs.length];
-        const el = document.getElementById('events-slide');
-        const cap = document.getElementById('events-slide-caption');
-        if (el && cap) {
-          el.style.backgroundImage = `url('${cur.image}')`;
-          cap.textContent = `${cur.title} — ${cur.date}`;
-        }
-        idx++;
-      };
-      setSlide();
-      clearInterval(window._eventsSlideTimer);
-      window._eventsSlideTimer = setInterval(setSlide, 5000);
-    } catch {}
+    eventsContainer.innerHTML = '<div class="list-item" style="padding:6px 8px;">Connect to Firestore to load events.</div>';
   }
 
   // Render Schedule
@@ -616,15 +500,7 @@ async function renderDashboard() {
       });
     } catch {}
   } else if (scheduleContainer) {
-    try {
-      const tchs = await fetchTeachers(3).catch(() => getData().schedules || []);
-      scheduleContainer.innerHTML = tchs.map(s => `
-        <div class="list-item" style="padding:6px 8px; gap:4px;">
-          <h3 style="font-size:0.95rem;">${s.name || s.title}</h3>
-          <p style="font-size:0.85rem; color:#4a5568;">${s.availability || (s.time || '')}</p>
-        </div>
-      `).join('');
-    } catch {}
+    scheduleContainer.innerHTML = '<div class="list-item" style="padding:6px 8px;">Connect to Firestore to load teachers availability.</div>';
   }
 
   // Faculty status removed from dashboard; accessible via voice only
@@ -632,8 +508,8 @@ async function renderDashboard() {
   // Render Media/Highlight
   const mediaContainer = document.getElementById('media-content');
   if (mediaContainer) {
-    const annsAll = await fetchAnnouncements(50).catch(() => getData().announcements || []);
-    const evsAll = await fetchEvents(50).catch(() => getData().events || []);
+    const annsAll = await fetchAnnouncements(50).catch(() => []);
+    const evsAll = await fetchEvents(50).catch(() => []);
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth()+1, 0);
@@ -673,7 +549,7 @@ async function renderDashboard() {
   const tickerEl = document.getElementById('ticker-text');
   if (tickerEl) {
     const t = await fetchConfig('ticker');
-    tickerEl.textContent = (t && t.text) || data.ticker;
+    tickerEl.textContent = (t && t.text) || '';
   }
 }
 
@@ -685,9 +561,9 @@ async function renderAdmin() {
   const annInput = document.getElementById('announcements-input');
   if (annInput) annInput.value = JSON.stringify(data.announcements, null, 2);
   const eventsInput = document.getElementById('events-input');
-  if (eventsInput) eventsInput.value = JSON.stringify(data.events, null, 2);
+  if (eventsInput) eventsInput.disabled = true;
   const scheduleInput = document.getElementById('schedule-input');
-  if (scheduleInput) scheduleInput.value = JSON.stringify(data.schedules, null, 2);
+  if (scheduleInput) scheduleInput.disabled = true;
   const mediaType = document.getElementById('media-type');
   const mediaValue = document.getElementById('media-value');
   if (mediaType) mediaType.disabled = true;
@@ -695,15 +571,17 @@ async function renderAdmin() {
   const registrarHours = document.getElementById('registrar-hours');
   const clinicStatus = document.getElementById('clinic-status');
   const guidanceAvailability = document.getElementById('guidance-availability');
-  if (registrarHours) registrarHours.value = data.officeInfo.registrarHours;
-  if (clinicStatus) clinicStatus.value = data.officeInfo.clinicStatus;
-  if (guidanceAvailability) guidanceAvailability.value = data.officeInfo.guidanceAvailability;
+  const offCfg = await fetchConfig('officeInfo');
+  if (registrarHours) registrarHours.value = (offCfg && offCfg.registrarHours) || '';
+  if (clinicStatus) clinicStatus.value = (offCfg && offCfg.clinicStatus) || '';
+  if (guidanceAvailability) guidanceAvailability.value = (offCfg && offCfg.guidanceAvailability) || '';
   const libraryStatus = document.getElementById('library-status');
   const canteenStatus = document.getElementById('canteen-status');
   const laboratoryStatus = document.getElementById('laboratory-status');
-  if (libraryStatus) libraryStatus.value = data.facilityStatus.library;
-  if (canteenStatus) canteenStatus.value = data.facilityStatus.canteen;
-  if (laboratoryStatus) laboratoryStatus.value = data.facilityStatus.laboratory;
+  const fsCfg = await fetchConfig('facilityStatus');
+  if (libraryStatus) libraryStatus.value = (fsCfg && fsCfg.library) || '';
+  if (canteenStatus) canteenStatus.value = (fsCfg && fsCfg.canteen) || '';
+  if (laboratoryStatus) laboratoryStatus.value = (fsCfg && fsCfg.laboratory) || '';
   const eventsAdmin = document.getElementById('events-admin-list');
   if (eventsAdmin) {
     const evsAll = await fetchEvents(50);
