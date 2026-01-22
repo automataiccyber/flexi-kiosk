@@ -56,11 +56,25 @@ function getFirestoreDB() {
     if (!window.FIREBASE_CONFIG || !window.FIREBASE_CONFIG.apiKey) return null;
     if (!window._firebaseApp) {
       window._firebaseApp = firebase.initializeApp(window.FIREBASE_CONFIG);
+      try { if (firebase.auth) firebase.auth().signInAnonymously().catch(() => {}); } catch {}
       window._db = firebase.firestore();
     }
     return window._db || null;
   } catch {
     return null;
+  }
+}
+
+async function checkFirestoreConnectivity() {
+  try {
+    const db = getFirestoreDB();
+    if (!db) return { ok: false, error: 'no-db' };
+    const ping = { ts: Date.now() };
+    const ref = await db.collection('connectivity').add(ping);
+    const doc = await ref.get();
+    return doc.exists ? { ok: true } : { ok: false, error: 'no-doc' };
+  } catch (e) {
+    return { ok: false, error: (e && e.code) || 'error' };
   }
 }
 
@@ -920,6 +934,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const e = document.getElementById('events-admin-list'); if (e) e.innerHTML = '';
       const t = document.getElementById('teachers-admin-list'); if (t) t.innerHTML = '';
       const r = document.getElementById('rooms-admin-list'); if (r) r.innerHTML = '';
+      const statusEl = document.getElementById('db-status');
+      if (statusEl) {
+        const st = await checkFirestoreConnectivity();
+        statusEl.textContent = st.ok ? 'Connected to Firestore' : `Firestore error: ${st.error}`;
+        statusEl.style.color = st.ok ? '#2f855a' : '#c53030';
+      }
     });
+    const statusEl = document.getElementById('db-status');
+    if (statusEl) {
+      const st = await checkFirestoreConnectivity();
+      statusEl.textContent = st.ok ? 'Connected to Firestore' : `Firestore error: ${st.error}`;
+      statusEl.style.color = st.ok ? '#2f855a' : '#c53030';
+    }
   }
 });
