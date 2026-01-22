@@ -445,63 +445,69 @@ async function renderDashboard() {
   const data = getData();
   const annContainer = document.getElementById('announcements-list');
   if (annContainer) {
-    const annsRaw = await fetchAnnouncements(50);
-    const parseAnn = (a) => {
-      const dstr = (a.date || '').replace(/\,/g,'');
-      const dt = new Date(dstr + ' ' + (a.time || ''));
-      return { ...a, _ts: dt.getTime() || 0 };
-    };
-    const anns = annsRaw.map(parseAnn).sort((x,y) => x._ts - y._ts).slice(0, 2);
-    annContainer.innerHTML = anns.map(a => `
-      <div class="list-item" style="padding:6px 8px; gap:4px;">
-        <h3 style="font-size:0.95rem;">${a.title}</h3>
-        <p style="font-size:0.85rem; color:#4a5568;">${a.time} • ${a.date}</p>
-      </div>
-    `).join('');
+    try {
+      const annsRaw = await fetchAnnouncements(50).catch(() => getData().announcements || []);
+      const parseAnn = (a) => {
+        const dstr = (a.date || '').replace(/\,/g,'');
+        const dt = new Date(dstr + ' ' + (a.time || ''));
+        return { ...a, _ts: dt.getTime() || 0 };
+      };
+      const anns = annsRaw.map(parseAnn).sort((x,y) => x._ts - y._ts).slice(0, 2);
+      annContainer.innerHTML = anns.map(a => `
+        <div class="list-item" style="padding:6px 8px; gap:4px;">
+          <h3 style="font-size:0.95rem;">${a.title}</h3>
+          <p style="font-size:0.85rem; color:#4a5568;">${a.time} • ${a.date}</p>
+        </div>
+      `).join('');
+    } catch {}
   }
 
   // Render Upcoming Events
   const eventsContainer = document.getElementById('events-list');
   if (eventsContainer) {
-    const evsAll = await fetchEvents(50);
-    const parseEv = (e) => {
-      const dstr = (e.date || '').replace(/\,/g,'');
-      const dt = new Date(dstr);
-      return { ...e, _ts: dt.getTime() || 0 };
-    };
-    const evs = evsAll.map(parseEv).sort((x,y) => x._ts - y._ts);
-    eventsContainer.innerHTML = `
-      <div id="events-slide" style="width:100%; height:100%; border-radius:8px; background-size:cover; background-position:center; display:flex; align-items:flex-end;">
-        <div id="events-slide-caption" style="width:100%; background:rgba(0,0,0,0.45); color:#fff; padding:8px 10px; border-radius:0 0 8px 8px; font-weight:bold;"></div>
-      </div>
-    `;
-    let idx = 0;
-    const setSlide = () => {
-      if (evs.length === 0) return;
-      const cur = evs[idx % evs.length];
-      const el = document.getElementById('events-slide');
-      const cap = document.getElementById('events-slide-caption');
-      if (el && cap) {
-        el.style.backgroundImage = `url('${cur.image}')`;
-        cap.textContent = `${cur.title} — ${cur.date}`;
-      }
-      idx++;
-    };
-    setSlide();
-    clearInterval(window._eventsSlideTimer);
-    window._eventsSlideTimer = setInterval(setSlide, 5000);
+    try {
+      const evsAll = await fetchEvents(50).catch(() => getData().events || []);
+      const parseEv = (e) => {
+        const dstr = (e.date || '').replace(/\,/g,'');
+        const dt = new Date(dstr);
+        return { ...e, _ts: dt.getTime() || 0 };
+      };
+      const evs = evsAll.map(parseEv).sort((x,y) => x._ts - y._ts);
+      eventsContainer.innerHTML = `
+        <div id="events-slide" style="width:100%; height:100%; border-radius:8px; background-size:cover; background-position:center; display:flex; align-items:flex-end;">
+          <div id="events-slide-caption" style="width:100%; background:rgba(0,0,0,0.45); color:#fff; padding:8px 10px; border-radius:0 0 8px 8px; font-weight:bold;"></div>
+        </div>
+      `;
+      let idx = 0;
+      const setSlide = () => {
+        if (evs.length === 0) return;
+        const cur = evs[idx % evs.length];
+        const el = document.getElementById('events-slide');
+        const cap = document.getElementById('events-slide-caption');
+        if (el && cap) {
+          el.style.backgroundImage = `url('${cur.image}')`;
+          cap.textContent = `${cur.title} — ${cur.date}`;
+        }
+        idx++;
+      };
+      setSlide();
+      clearInterval(window._eventsSlideTimer);
+      window._eventsSlideTimer = setInterval(setSlide, 5000);
+    } catch {}
   }
 
   // Render Schedule
   const scheduleContainer = document.getElementById('schedule-list');
   if (scheduleContainer) {
-    const tchs = await fetchTeachers(3);
-    scheduleContainer.innerHTML = tchs.map(s => `
-      <div class="list-item" style="padding:6px 8px; gap:4px;">
-        <h3 style="font-size:0.95rem;">${s.name}</h3>
-        <p style="font-size:0.85rem; color:#4a5568;">${s.availability}</p>
-      </div>
-    `).join('');
+    try {
+      const tchs = await fetchTeachers(3).catch(() => getData().schedules || []);
+      scheduleContainer.innerHTML = tchs.map(s => `
+        <div class="list-item" style="padding:6px 8px; gap:4px;">
+          <h3 style="font-size:0.95rem;">${s.name || s.title}</h3>
+          <p style="font-size:0.85rem; color:#4a5568;">${s.availability || (s.time || '')}</p>
+        </div>
+      `).join('');
+    } catch {}
   }
 
   // Faculty status removed from dashboard; accessible via voice only
@@ -509,8 +515,8 @@ async function renderDashboard() {
   // Render Media/Highlight
   const mediaContainer = document.getElementById('media-content');
   if (mediaContainer) {
-    const annsAll = await fetchAnnouncements(50);
-    const evsAll = await fetchEvents(50);
+    const annsAll = await fetchAnnouncements(50).catch(() => getData().announcements || []);
+    const evsAll = await fetchEvents(50).catch(() => getData().events || []);
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth()+1, 0);
@@ -529,8 +535,8 @@ async function renderDashboard() {
     const rows = Math.ceil(grid.length / 7);
     const gap = 6;
     mediaContainer.innerHTML = `
-      <div style="display:flex; flex-direction:column; height:100%;">
-        <div style="flex:1; display:grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(${rows}, 1fr); gap:${gap}px;">
+      <div style="display:grid; grid-template-rows: 1fr auto; height:100%;">
+        <div style="display:grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(${rows}, 1fr); gap:${gap}px;">
           ${grid.map(d => {
             if (d==='') return `<div style="background:#f7fafc; border-radius:6px;"></div>`;
             const hasE = evDays.some(x => x.getDate() === d);
