@@ -36,6 +36,13 @@ async function checkFirestoreConnectivity() {
   }
 }
 
+function updateDbIndicator(text, ok) {
+  const el = document.getElementById('db-indicator');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = ok ? '#2f855a' : '#c53030';
+}
+
 async function logInfo(type, details) {
   try {
     const db = getFirestoreDB();
@@ -449,7 +456,9 @@ async function renderDashboard() {
           </div>
         `).join('');
       }, (err) => {
-        annContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">Firestore error: ${err && (err.code || err.message) || 'unknown'}</div>`;
+        const msg = `Firestore error: ${err && (err.code || err.message) || 'unknown'}`;
+        annContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">${msg}</div>`;
+        updateDbIndicator(msg, false);
         try { console.error('Announcements snapshot error', err); } catch {}
       });
     } catch {}
@@ -490,7 +499,9 @@ async function renderDashboard() {
         clearInterval(window._eventsSlideTimer);
         window._eventsSlideTimer = setInterval(setSlide, 5000);
       }, (err) => {
-        eventsContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">Firestore error: ${err && (err.code || err.message) || 'unknown'}</div>`;
+        const msg = `Firestore error: ${err && (err.code || err.message) || 'unknown'}`;
+        eventsContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">${msg}</div>`;
+        updateDbIndicator(msg, false);
         try { console.error('Events snapshot error', err); } catch {}
       });
     } catch {}
@@ -511,7 +522,9 @@ async function renderDashboard() {
           </div>
         `).join('');
       }, (err) => {
-        scheduleContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">Firestore error: ${err && (err.code || err.message) || 'unknown'}</div>`;
+        const msg = `Firestore error: ${err && (err.code || err.message) || 'unknown'}`;
+        scheduleContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">${msg}</div>`;
+        updateDbIndicator(msg, false);
         try { console.error('Teachers snapshot error', err); } catch {}
       });
     } catch {}
@@ -636,6 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
     logInfo('dashboard_view', { path: 'dashboard.html' });
     setInterval(updateTime, 1000);
     updateTime();
+    (async () => { const st = await checkFirestoreConnectivity(); updateDbIndicator(st.ok ? 'Connected to Firestore' : `Firestore error: ${st.error}`, st.ok); })();
     const closeBtn = document.getElementById('voice-close');
     if (closeBtn) closeBtn.addEventListener('click', hideOverlay);
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
