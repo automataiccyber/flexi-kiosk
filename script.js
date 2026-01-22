@@ -64,6 +64,18 @@ function getFirestoreDB() {
   }
 }
 
+async function logInfo(type, details) {
+  try {
+    const db = getFirestoreDB();
+    const doc = { type, details, ts: new Date().toISOString(), ua: (navigator && navigator.userAgent) || '' };
+    if (db) { try { await db.collection('logs').add(doc); } catch {} }
+    const cur = getData();
+    const logs = Array.isArray(cur.logs) ? cur.logs : [];
+    logs.unshift(doc);
+    saveData({ ...cur, logs });
+  } catch {}
+}
+
 
 async function fetchAnnouncements(limitCount = 3) {
   try {
@@ -87,6 +99,7 @@ async function addAnnouncement(title, date, time) {
   const data = getData();
   data.announcements.unshift({ title, date, time });
   saveData(data);
+  await logInfo('announcement_add', { title, date, time });
 }
 
 async function fetchEvents(limitCount = 1) {
@@ -112,6 +125,7 @@ async function addEvent(title, date, image) {
   const data = getData();
   data.events.unshift({ title, date: displayDate, image });
   saveData(data);
+  await logInfo('event_add', { title, date: displayDate });
 }
 
 async function fetchSchedules(limitCount = 2) {
@@ -154,9 +168,11 @@ async function addSchedule(title, start, end) {
     const data = getData();
     data.schedules.unshift({ title, time });
     saveData(data);
+    await logInfo('schedule_add', { title, time });
     return;
   }
   await db.collection('schedules').add({ title, time, createdAt: new Date().toISOString() });
+  await logInfo('schedule_add', { title, time });
 }
 
 async function saveConfigDocs(payload) {
@@ -171,6 +187,7 @@ async function saveConfigDocs(payload) {
   }
   const current = getData();
   saveData({ ...current, ...payload });
+  await logInfo('config_save', { keys: Object.keys(payload) });
 }
 
 async function addRoom(name, status) {
@@ -179,9 +196,11 @@ async function addRoom(name, status) {
     const data = getData();
     data.roomAvailability.unshift({ name, status });
     saveData(data);
+    await logInfo('room_add', { name, status });
     return;
   }
   await db.collection('rooms').add({ name, status, createdAt: new Date().toISOString() });
+  await logInfo('room_add', { name, status });
 }
 
 async function fetchRooms() {
@@ -290,21 +309,11 @@ function normalizeText(s) {
 
 function commandsHTML() {
   const cmds = [
-    'Hey Flexi, is the library open?',
-    'Hey Flexi, registrar office hours',
-    'Hey Flexi, clinic status',
-    'Hey Flexi, guidance office availability',
-    'Hey Flexi, show facility status',
-    'Hey Flexi, room availability',
-    'Hey Flexi, show free rooms',
-    'Hey Flexi, full announcement list',
-    'Hey Flexi, show schedule',
-    'Hey Flexi, show upcoming events today',
-    'Hey Flexi, show upcoming events tomorrow',
-    'Hey Flexi, show upcoming events this week',
-    'Hey Flexi, show events on January 25',
-    'Hey Flexi, show events from Jan 20 to Jan 25',
-    'Hey Flexi, show QR code'
+    'Hey Flexi, full announcements list',
+    'Hey Flexi, teachers availability',
+    'Hey Flexi, upcoming events',
+    'Hey Flexi, faculty status',
+    'Hey Flexi, calendar highlights'
   ];
   return '<div>' + cmds.map(c => `<div>• ${c}</div>`).join('') + '</div>';
 }
@@ -395,12 +404,14 @@ async function handleVoice(text) {
   if (t.includes('full announcement') || t.includes('show announcements') || t.includes('announcements list') || t.includes('announcement')) {
     const anns = await fetchAnnouncements(200);
     const html = anns.map(a => `<div style="padding:6px 8px;"><b>${a.title}</b><div style="color:#4a5568; font-size:0.85rem;">${a.time} • ${a.date}</div></div>`).join('');
+    await logInfo('voice_command', { command: 'announcements' });
     return showModal('Announcements', html);
   }
 
   if (t.includes('teacher') || t.includes('teachers availability') || t.includes('availability')) {
     const tchs = await fetchTeachers(200);
     const html = tchs.map(s => `<div style="padding:6px 8px;"><b>${s.name}</b><div style="color:#4a5568; font-size:0.85rem;">${s.availability}</div></div>`).join('');
+    await logInfo('voice_command', { command: 'teachers' });
     return showModal('Teachers Availability', html);
   }
 
@@ -417,6 +428,7 @@ async function handleVoice(text) {
       evs = evsAll.filter(inRange);
     }
     const html = (evs.length ? evs : evsAll).map(e => `<div style="display:flex; gap:10px; padding:8px 0; align-items:center;"><div style="width:80px; height:60px; background-image:url('${e.image}'); background-size:cover; background-position:center; border-radius:6px;"></div><div><div style="font-weight:bold;">${e.title}</div><div style="color:#4a5568; font-size:0.85rem;">${e.date}</div></div></div>`).join('');
+    await logInfo('voice_command', { command: 'events' });
     return showModal('Upcoming Events', html);
   }
 
@@ -424,6 +436,7 @@ async function handleVoice(text) {
     const anns = await fetchAnnouncements(200);
     const evs = await fetchEvents(200);
     const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${evs.map(e => `<div>${e.title} — ${e.date}</div>`).join('')}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${anns.map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('')}</div>`;
+    await logInfo('voice_command', { command: 'calendar' });
     return showModal('Calendar & Highlights', html);
   }
 
@@ -622,6 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Check which page we are on
   if (document.getElementById('dashboard-view')) {
     renderDashboard();
+    logInfo('dashboard_view', { path: 'dashboard.html' });
     setInterval(updateTime, 1000);
     updateTime();
     const closeBtn = document.getElementById('voice-close');
@@ -653,7 +667,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           const normBuf = normalizeText(voiceBuf);
           if (normBuf.includes('hey flexi')) {
-            const hasCmd = ['library','registrar','clinic','guidance','facility','room','announcement','schedule','event','qr','show','open','commands','help']
+            const hasCmd = ['announcement','events','teachers','availability','faculty','calendar','highlights','commands','help']
               .some(k => normBuf.includes(k));
             clearTimeout(voiceTimer);
             voiceTimer = setTimeout(async () => {
@@ -684,7 +698,7 @@ document.addEventListener('DOMContentLoaded', () => {
       backoff = 600;
       sessionDeadline = Date.now() + 15000;
       voiceBuf = '';
-      try { recog.start(); showOverlay('Voice Commands', commandsHTML() + '<div style="margin-top:8px; color:#2d3748;">Listening… say “Hey Flexi …”</div>'); } catch {}
+      try { recog.start(); showOverlay('Voice Commands', commandsHTML() + '<div style="margin-top:8px; color:#2d3748;">Listening… say “Hey Flexi …”</div>'); await logInfo('voice_start', {}); } catch {}
     };
     if (mic) mic.addEventListener('click', startListening);
 
