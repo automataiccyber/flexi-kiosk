@@ -536,7 +536,7 @@ async function renderDashboard() {
     const gap = 4;
     mediaContainer.innerHTML = `
       <div style="display:grid; grid-template-rows: minmax(0,1fr) auto; height:100%; min-height:0;">
-        <div style="display:grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(${rows}, minmax(0,1fr)); gap:${gap}px; min-height:0;">
+        <div style="display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); grid-template-rows: repeat(${rows}, minmax(0,1fr)); gap:${gap}px; min-height:0; width:100%; box-sizing:border-box;">
           ${grid.map(d => {
             if (d==='') return `<div style="background:#f7fafc; border-radius:6px;"></div>`;
             const hasE = evDays.some(x => x.getDate() === d);
@@ -545,7 +545,7 @@ async function renderDashboard() {
             return `<div style="border-radius:6px; background:${bg}; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#2d3748;">${d}</div>`;
           }).join('')}
         </div>
-        <div style="margin-top:6px; font-size:0.8rem; color:#4a5568;">Green: Events • Blue: Announcements • Red: Both</div>
+        <div style="margin-top:6px; font-size:0.8rem; color:#4a5568;"><span style="color:#2f855a; font-weight:600;">Events</span> • <span style="color:#2b6cb0; font-weight:600;">Announcements</span> • <span style="color:#c53030; font-weight:600;">Both</span></div>
       </div>
     `;
   }
