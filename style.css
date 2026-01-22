@@ -196,20 +196,26 @@ main {
 .event-card {
   background-color: #EBF5F8;
   border-radius: 12px;
-  padding: 1rem;
-  flex: 1; /* Occupy available space */
+  padding: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.event-card > div:first-child {
+  padding: 1rem;
+  padding-bottom: 0;
 }
 
 .event-img {
   flex: 1;
   background-color: #cbd5e0;
   border-radius: 8px;
-  margin-top: 0.5rem;
+  margin-top: 0;
   background-size: cover;
   background-position: center;
-  height: auto;
+  height: 100%;
 }
 
 /* Media / QR Section */

@@ -471,7 +471,7 @@ async function renderDashboard() {
     };
     const evs = evsAll.map(parseEv).sort((x,y) => x._ts - y._ts);
     eventsContainer.innerHTML = `
-      <div id="events-slide" style="width:100%; height:220px; border-radius:8px; background-size:cover; background-position:center; display:flex; align-items:flex-end;">
+      <div id="events-slide" style="width:100%; height:100%; border-radius:8px; background-size:cover; background-position:center; display:flex; align-items:flex-end;">
         <div id="events-slide-caption" style="width:100%; background:rgba(0,0,0,0.45); color:#fff; padding:8px 10px; border-radius:0 0 8px 8px; font-weight:bold;"></div>
       </div>
     `;
@@ -528,19 +528,19 @@ async function renderDashboard() {
     for (let i=1;i<=totalDays;i++) grid.push(i);
     const rows = Math.ceil(grid.length / 7);
     const gap = 6;
-    const H = mediaContainer.clientHeight || 240;
-    const cellH = Math.max(40, Math.floor((H - gap*(rows-1)) / rows));
     mediaContainer.innerHTML = `
-      <div style="display:grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(${rows}, ${cellH}px); gap:${gap}px;">
-        ${grid.map(d => {
-          if (d==='') return `<div style="height:${cellH}px; background:#f7fafc; border-radius:6px;"></div>`;
-          const hasE = evDays.some(x => x.getDate() === d);
-          const hasA = annDays.some(x => x.getDate() === d);
-          const bg = hasE && hasA ? '#fed7d7' : hasE ? '#c6f6d5' : hasA ? '#bee3f8' : '#edf2f7';
-          return `<div style="height:${cellH}px; border-radius:6px; background:${bg}; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#2d3748;">${d}</div>`;
-        }).join('')}
+      <div style="display:flex; flex-direction:column; height:100%;">
+        <div style="flex:1; display:grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(${rows}, 1fr); gap:${gap}px;">
+          ${grid.map(d => {
+            if (d==='') return `<div style="background:#f7fafc; border-radius:6px;"></div>`;
+            const hasE = evDays.some(x => x.getDate() === d);
+            const hasA = annDays.some(x => x.getDate() === d);
+            const bg = hasE && hasA ? '#fed7d7' : hasE ? '#c6f6d5' : hasA ? '#bee3f8' : '#edf2f7';
+            return `<div style="border-radius:6px; background:${bg}; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#2d3748;">${d}</div>`;
+          }).join('')}
+        </div>
+        <div style="margin-top:8px; font-size:0.85rem; color:#4a5568;">Green: Events • Blue: Announcements • Red: Both</div>
       </div>
-      <div style="margin-top:8px; font-size:0.85rem; color:#4a5568;">Green: Events • Blue: Announcements • Red: Both</div>
     `;
   }
 
