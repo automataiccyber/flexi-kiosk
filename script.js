@@ -15,6 +15,11 @@ const defaultData = {
     { title: "Recess", time: "09:30 AM - 10:00 AM" },
     { title: "Physics Lab", time: "10:00 AM - 11:30 AM" }
   ],
+  teachers: [
+    { name: "Mr. Santos", availability: "08:00 AM - 12:00 PM" },
+    { name: "Ms. Reyes", availability: "01:00 PM - 05:00 PM" },
+    { name: "Dr. Cruz", availability: "On Leave" }
+  ],
   media: {
     type: "qr",
     value: "Scan for Updates"
@@ -119,6 +124,19 @@ async function fetchSchedules(limitCount = 2) {
     return rows;
   } catch {
     return getData().schedules.slice(0, limitCount);
+  }
+}
+
+async function fetchTeachers(limitCount = 8) {
+  try {
+    const db = getFirestoreDB();
+    if (!db) throw new Error('no-db');
+    const snap = await db.collection('teachers').orderBy('createdAt', 'desc').limit(limitCount).get();
+    const rows = snap.docs.map(d => d.data());
+    if (!rows || rows.length === 0) throw new Error('empty');
+    return rows;
+  } catch {
+    return getData().teachers.slice(0, limitCount);
   }
 }
 
@@ -248,6 +266,21 @@ function showOverlay(title, html) {
 
 function hideOverlay() {
   const overlay = document.getElementById('voice-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function showModal(title, html) {
+  const overlay = document.getElementById('modal-overlay');
+  const t = document.getElementById('modal-title');
+  const c = document.getElementById('modal-content');
+  if (!overlay || !t || !c) return;
+  t.textContent = title;
+  c.innerHTML = html;
+  overlay.style.display = 'flex';
+}
+
+function hideModal() {
+  const overlay = document.getElementById('modal-overlay');
   if (overlay) overlay.style.display = 'none';
 }
 
@@ -397,11 +430,17 @@ async function renderDashboard() {
   const data = getData();
   const annContainer = document.getElementById('announcements-list');
   if (annContainer) {
-    const anns = await fetchAnnouncements(3);
+    const annsRaw = await fetchAnnouncements(50);
+    const parseAnn = (a) => {
+      const dstr = (a.date || '').replace(/\,/g,'');
+      const dt = new Date(dstr + ' ' + (a.time || ''));
+      return { ...a, _ts: dt.getTime() || 0 };
+    };
+    const anns = annsRaw.map(parseAnn).sort((x,y) => x._ts - y._ts).slice(0, 6);
     annContainer.innerHTML = anns.map(a => `
-      <div class="list-item">
-        <h3>${a.title}</h3>
-        <p>${a.time} • ${a.date}</p>
+      <div class="list-item" style="padding:6px 8px; gap:4px;">
+        <h3 style="font-size:0.95rem;">${a.title}</h3>
+        <p style="font-size:0.85rem; color:#4a5568;">${a.time} • ${a.date}</p>
       </div>
     `).join('');
   }
@@ -409,49 +448,113 @@ async function renderDashboard() {
   // Render Upcoming Events
   const eventsContainer = document.getElementById('events-list');
   if (eventsContainer) {
-    const evs = await fetchEvents(1);
-    eventsContainer.innerHTML = evs.map(e => `
-      <div class="event-card">
-        <div style="display:flex; justify-content:space-between;">
-          <b>${e.title}</b>
-          <span style="color:#666">${e.date}</span>
-        </div>
-        <div class="event-img" style="background-image: url('${e.image}')"></div>
+    const evsAll = await fetchEvents(50);
+    const parseEv = (e) => {
+      const dstr = (e.date || '').replace(/\,/g,'');
+      const dt = new Date(dstr);
+      return { ...e, _ts: dt.getTime() || 0 };
+    };
+    const evs = evsAll.map(parseEv).sort((x,y) => x._ts - y._ts);
+    eventsContainer.innerHTML = `
+      <div id="events-slide" style="width:100%; height:220px; border-radius:8px; background-size:cover; background-position:center; display:flex; align-items:flex-end;">
+        <div id="events-slide-caption" style="width:100%; background:rgba(0,0,0,0.45); color:#fff; padding:8px 10px; border-radius:0 0 8px 8px; font-weight:bold;"></div>
       </div>
-    `).join('');
+    `;
+    let idx = 0;
+    const setSlide = () => {
+      if (evs.length === 0) return;
+      const cur = evs[idx % evs.length];
+      const el = document.getElementById('events-slide');
+      const cap = document.getElementById('events-slide-caption');
+      if (el && cap) {
+        el.style.backgroundImage = `url('${cur.image}')`;
+        cap.textContent = `${cur.title} — ${cur.date}`;
+      }
+      idx++;
+    };
+    setSlide();
+    clearInterval(window._eventsSlideTimer);
+    window._eventsSlideTimer = setInterval(setSlide, 5000);
   }
 
   // Render Schedule
   const scheduleContainer = document.getElementById('schedule-list');
   if (scheduleContainer) {
-    const schs = await fetchSchedules(2);
-    scheduleContainer.innerHTML = schs.map(s => `
-      <div class="list-item" style="border-left-color: var(--primary-green);">
-        <h3>${s.title}</h3>
-        <p>${s.time}</p>
+    const tchs = await fetchTeachers(8);
+    scheduleContainer.innerHTML = tchs.map(s => `
+      <div class="list-item" style="border-left-color: var(--primary-green); padding:6px 8px; gap:4px;">
+        <h3 style="font-size:0.95rem;">${s.name}</h3>
+        <p style="font-size:0.85rem; color:#4a5568;">${s.availability}</p>
       </div>
     `).join('');
+  }
+
+  const facultyContainer = document.getElementById('faculty-status');
+  if (facultyContainer) {
+    const off = await fetchConfig('officeInfo') || data.officeInfo;
+    const fs = await fetchConfig('facilityStatus') || data.facilityStatus;
+    facultyContainer.innerHTML = `
+      <div class="list-item" style="padding:6px 8px; gap:4px;">
+        <h3 style="font-size:0.95rem;">Registrar</h3>
+        <p style="font-size:0.85rem; color:#4a5568;">${off.registrarHours}</p>
+      </div>
+      <div class="list-item" style="padding:6px 8px; gap:4px;">
+        <h3 style="font-size:0.95rem;">Clinic</h3>
+        <p style="font-size:0.85rem; color:#4a5568;">${off.clinicStatus}</p>
+      </div>
+      <div class="list-item" style="padding:6px 8px; gap:4px;">
+        <h3 style="font-size:0.95rem;">Guidance</h3>
+        <p style="font-size:0.85rem; color:#4a5568;">${off.guidanceAvailability}</p>
+      </div>
+      <div class="list-item" style="padding:6px 8px; gap:4px;">
+        <h3 style="font-size:0.95rem;">Library</h3>
+        <p style="font-size:0.85rem; color:#4a5568;">${fs.library}</p>
+      </div>
+      <div class="list-item" style="padding:6px 8px; gap:4px;">
+        <h3 style="font-size:0.95rem;">Canteen</h3>
+        <p style="font-size:0.85rem; color:#4a5568;">${fs.canteen}</p>
+      </div>
+      <div class="list-item" style="padding:6px 8px; gap:4px;">
+        <h3 style="font-size:0.95rem;">Laboratory</h3>
+        <p style="font-size:0.85rem; color:#4a5568;">${fs.laboratory}</p>
+      </div>
+    `;
   }
 
   // Render Media/Highlight
   const mediaContainer = document.getElementById('media-content');
   if (mediaContainer) {
-    const mediaCfg = await fetchConfig('media');
-    const mediaData = mediaCfg || data.media;
-    if (mediaData.type === 'qr') {
-      mediaContainer.innerHTML = `
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(mediaData.value || 'FlexiSystem')}" class="qr-code" alt="QR">
-        <p style="margin-top:10px; font-weight:bold;">${mediaData.value}</p>
-      `;
-    } else if (mediaData.type === 'quote') {
-      mediaContainer.innerHTML = `
-        <div style="font-size:1.2rem; font-weight:bold;">“${mediaData.value}”</div>
-      `;
-    } else {
-      mediaContainer.innerHTML = `
-        <div style="width:100%; height:100%; background-image:url('${mediaData.value}'); background-size:cover; background-position:center; border-radius:8px;"></div>
-      `;
-    }
+    const annsAll = await fetchAnnouncements(50);
+    const evsAll = await fetchEvents(50);
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth()+1, 0);
+    const parseDay = (s) => {
+      const dstr = (s || '').replace(/\,/g,'');
+      const d = new Date(dstr);
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    };
+    const days = [];
+    const totalDays = monthEnd.getDate();
+    for (let i=1;i<=totalDays;i++) days.push(i);
+    const evDays = evsAll.map(e => parseDay(e.date)).filter(d => d.getMonth() === now.getMonth());
+    const annDays = annsAll.map(a => parseDay(a.date)).filter(d => d.getMonth() === now.getMonth());
+    const firstDay = monthStart.getDay();
+    const grid = [];
+    for (let i=0;i<firstDay;i++) grid.push('');
+    for (let i=1;i<=totalDays;i++) grid.push(i);
+    mediaContainer.innerHTML = `
+      <div style="display:grid; grid-template-columns: repeat(7, 1fr); gap:6px;">
+        ${grid.map(d => {
+          if (d==='') return `<div style="height:60px; background:#f7fafc; border-radius:6px;"></div>`;
+          const hasE = evDays.some(x => x.getDate() === d);
+          const hasA = annDays.some(x => x.getDate() === d);
+          const bg = hasE && hasA ? '#fed7d7' : hasE ? '#c6f6d5' : hasA ? '#bee3f8' : '#edf2f7';
+          return `<div style="height:60px; border-radius:6px; background:${bg}; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#2d3748;">${d}</div>`;
+        }).join('')}
+      </div>
+      <div style="margin-top:8px; font-size:0.85rem; color:#4a5568;">Green: Events • Blue: Announcements • Red: Both</div>
+    `;
   }
 
   // Render Ticker
@@ -589,6 +692,48 @@ document.addEventListener('DOMContentLoaded', () => {
       try { recog.start(); showOverlay('Voice Commands', commandsHTML() + '<div style="margin-top:8px; color:#2d3748;">Listening… say “Hey Flexi …”</div>'); } catch {}
     };
     if (mic) mic.addEventListener('click', startListening);
+
+    const mclose = document.getElementById('modal-close');
+    if (mclose) mclose.addEventListener('click', hideModal);
+    const annHead = document.getElementById('announcements-header');
+    const eventsHead = document.getElementById('events-header');
+    const teachersHead = document.getElementById('teachers-header');
+    const facultyHead = document.getElementById('faculty-header');
+    const calHead = document.getElementById('calendar-header');
+    if (annHead) annHead.addEventListener('click', async () => {
+      const anns = await fetchAnnouncements(200);
+      const html = anns.map(a => `<div style="padding:6px 8px;"><b>${a.title}</b><div style="color:#4a5568; font-size:0.85rem;">${a.time} • ${a.date}</div></div>`).join('');
+      showModal('Announcements', html);
+    });
+    if (eventsHead) eventsHead.addEventListener('click', async () => {
+      const evs = await fetchEvents(200);
+      const html = evs.map(e => `<div style="display:flex; gap:10px; padding:8px 0; align-items:center;"><div style="width:80px; height:60px; background-image:url('${e.image}'); background-size:cover; background-position:center; border-radius:6px;"></div><div><div style="font-weight:bold;">${e.title}</div><div style="color:#4a5568; font-size:0.85rem;">${e.date}</div></div></div>`).join('');
+      showModal('Upcoming Events', html);
+    });
+    if (teachersHead) teachersHead.addEventListener('click', async () => {
+      const tchs = await fetchTeachers(200);
+      const html = tchs.map(s => `<div style="padding:6px 8px;"><b>${s.name}</b><div style="color:#4a5568; font-size:0.85rem;">${s.availability}</div></div>`).join('');
+      showModal('Teachers Availability', html);
+    });
+    if (facultyHead) facultyHead.addEventListener('click', async () => {
+      const off = await fetchConfig('officeInfo') || getData().officeInfo;
+      const fs = await fetchConfig('facilityStatus') || getData().facilityStatus;
+      const html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div><b>Registrar:</b> ${off.registrarHours}</div>
+        <div><b>Clinic:</b> ${off.clinicStatus}</div>
+        <div><b>Guidance:</b> ${off.guidanceAvailability}</div>
+        <div><b>Library:</b> ${fs.library}</div>
+        <div><b>Canteen:</b> ${fs.canteen}</div>
+        <div><b>Laboratory:</b> ${fs.laboratory}</div>
+      </div>`;
+      showModal('Faculty Status', html);
+    });
+    if (calHead) calHead.addEventListener('click', async () => {
+      const anns = await fetchAnnouncements(200);
+      const evs = await fetchEvents(200);
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${evs.map(e => `<div>${e.title} — ${e.date}</div>`).join('')}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${anns.map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('')}</div>`;
+      showModal('Calendar & Highlights', html);
+    });
   }
   
   if (document.getElementById('admin-view')) {

@@ -26,7 +26,7 @@
       <!-- Left Column: Announcements (7fr) & Schedule (3fr) -->
       <div class="column">
         <section class="card">
-          <div class="card-header header-blue">
+          <div class="card-header header-blue" id="announcements-header">
             <span>📢</span> ANNOUNCEMENTS
           </div>
           <div class="card-body" id="announcements-list">
@@ -35,10 +35,18 @@
         </section>
 
         <section class="card">
-          <div class="card-header header-blue">
-            <span>⏰</span> DAILY SCHEDULE
+          <div class="card-header header-blue" id="teachers-header">
+            <span>👩‍🏫</span> TEACHERS AVAILABILITY
           </div>
           <div class="card-body" id="schedule-list">
+            <!-- Dynamic Content -->
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-header header-blue" id="faculty-header">
+            <span>🏢</span> FACULTY STATUS
+          </div>
+          <div class="card-body" id="faculty-status">
             <!-- Dynamic Content -->
           </div>
         </section>
@@ -47,7 +55,7 @@
       <!-- Right Column: Events (7fr) & Media (3fr) -->
       <div class="column">
         <section class="card">
-          <div class="card-header header-green">
+          <div class="card-header header-green" id="events-header">
             <span>📅</span> UPCOMING EVENTS
           </div>
           <div class="card-body" id="events-list">
@@ -55,8 +63,13 @@
           </div>
         </section>
 
-        <section class="media-container" id="media-content">
-          <!-- Dynamic Content -->
+        <section class="card">
+          <div class="card-header header-green" id="calendar-header">
+            <span>🗓️</span> CALENDAR & HIGHLIGHTS
+          </div>
+          <div class="card-body" id="media-content">
+            <!-- Dynamic Content -->
+          </div>
         </section>
       </div>
     </main>
@@ -84,6 +97,16 @@
         <button id="voice-close" style="background:#edf2f7; border:0; padding:6px 10px; border-radius:8px; cursor:pointer;">Close</button>
       </div>
       <div id="voice-content" style="padding: 14px 16px;"></div>
+    </div>
+  </div>
+
+  <div id="modal-overlay" style="position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 1001;">
+    <div style="width: 760px; max-width: 92vw; background: #fff; color: #1a202c; border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.3);">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding: 12px 16px; border-bottom: 1px solid #edf2f7;">
+        <div id="modal-title" style="font-weight:bold;">Details</div>
+        <button id="modal-close" style="background:#edf2f7; border:0; padding:6px 10px; border-radius:8px; cursor:pointer;">Close</button>
+      </div>
+      <div id="modal-content" style="padding: 14px 16px;"></div>
     </div>
   </div>
 
