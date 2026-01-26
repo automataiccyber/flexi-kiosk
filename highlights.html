@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flexi Kiosk - Highlights</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body id="admin-view">
+  <div class="admin-container">
+    <header class="admin-header">
+      <nav class="top-nav">
+        <button class="nav-btn" onclick="window.location='admin.html'"><span class="nav-label">Announcements</span></button>
+        <button class="nav-btn" onclick="window.location='events.html'"><span class="nav-label">Upcoming Events</span></button>
+        <button class="nav-btn" onclick="window.location='facility.html'"><span class="nav-label">Facility Status</span></button>
+        <button class="nav-btn active"><span class="nav-label">Highlights</span></button>
+        <button class="nav-btn" onclick="window.location='ticker.html'"><span class="nav-label">Ticker</span></button>
+      </nav>
+    </header>
+    <main class="content-area">
+      <section id="highlights" class="admin-section active">
+        <div class="ann-row h-101">
+          <div class="label-input">
+            <label>Upload Image</label>
+            <input type="file" id="highlight-img-upload" accept="image/*">
+          </div>
+        </div>
+        <div class="ann-row h-5">
+          <button id="highlight-add-btn" class="btn-action full">Add</button>
+        </div>
+        <div class="ann-row h-55 list-container">
+          <div id="highlights-admin-list" class="scroll-content highlights-grid"></div>
+        </div>
+        <div class="ann-row actions-container h-10">
+          <button id="events-save-btn" class="btn-save">Save</button>
+          <a href="dashboard.html" class="btn-link">Dashboard</a>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

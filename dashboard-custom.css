@@ -1,0 +1,477 @@
+/* User Provided CSS - Updated */
+.row-teachers-activities {
+  height: 34vh;
+  display: flex;
+  gap: 6px;
+  background: #005596;
+  padding: 3px 0;
+  flex-shrink: 0;
+}
+
+.section-teachers {
+  width: 55%;
+  background: #e2dddd;
+  border: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-activities {
+  width: 45%;
+  background: #e2dddd;
+  border: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-facility .events-title {
+  font-size: clamp(1.5rem, 2vh, 3rem);
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.events-title {
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  color: #000000;
+  border: none;
+  text-align: center;
+}
+
+/* Flash Card Slider */
+.flash-card-slider {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  padding: 8px;
+  background: transparent;
+}
+
+.event-card {
+  position: absolute;
+  top: 0.5em;
+  left: 0.5em;
+  right: 0.5em;
+  bottom: 0.5em;
+  max-width: 95%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: transparent;
+  transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+.event-card.active {
+  opacity: 1;
+  transform: translateX(0);
+  animation: boxReveal 600ms ease-in-out;
+}
+
+.event-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.5rem 0.75rem;
+  background: linear-gradient(to top, rgba(0,0,0,0.65), rgba(0,0,0,0.2), rgba(0,0,0,0));
+}
+
+.event-title {
+  font-size: clamp(0.9rem, 2.5vh, 1.4rem);
+  color: #fff;
+  margin: 0;
+  text-align: left;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.event-sub {
+  font-size: clamp(0.75rem, 2vh, 1rem);
+  color: #e2e8f0;
+  margin-top: 2px;
+  text-align: left;
+}
+
+.dots-wrap {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.dots-wrap .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #000;
+  opacity: 0.4;
+}
+
+.dots-wrap .dot.active {
+  opacity: 1;
+}
+
+/* Facility and Highlights Section */
+.row-highlights-facility { 
+  height: 25vh; 
+  display: flex; 
+  gap: 6px; 
+  background: #005596; 
+  padding: 3px 0 0 0; 
+  flex-shrink: 0; 
+} 
+
+.section-highlights { 
+  width: 35%; 
+  background: #e2dddd; 
+  border: none; 
+  border-radius: 0; 
+} 
+
+/* Row */
+.facility-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Facility name */
+.facility-name {
+  flex: 1 1 65%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  font-size: clamp(0.6rem, 1.6vw, 1rem);
+  line-height: 1.1;
+}
+
+/* Status badge */
+.facility-status {
+  flex: 0 1 35%;
+  min-width: 0;
+  max-width: none;       /* Remove hard cap */
+  padding: clamp(1px, 0.3vh, 2px) clamp(2px, 0.6vw, 5px);
+
+  font-size: clamp(0.5rem, 1.2vw, 0.85rem);
+  line-height: 1.1;
+
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* No scrolling */
+.section-facility .card-body {
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .facility-name { font-size: clamp(0.55rem, 2vw, 0.9rem); }
+  .facility-status { font-size: clamp(0.45rem, 1.8vw, 0.8rem); padding: 2px 4px; border-width: 1px; }
+}
+
+
+.section-facility { 
+  width: 65%; 
+  background: #e2dddd; 
+  border: none; 
+  border-radius: 0; 
+} 
+
+#highlights-container { 
+  position: relative; 
+  display: flex; 
+  flex-direction: column; 
+  height: 100%; 
+} 
+
+/* Image Slide */ 
+.image-slide { 
+  position: relative; 
+  flex: 1; 
+  width: 100%; 
+  margin: 0 12px; 
+  max-width: calc(100% - 24px); 
+  display: flex; 
+  background-size: cover; 
+  background-position: center; 
+  transition: background-image 0.5s ease-in-out; 
+  border-radius: 0; 
+} 
+
+.image-slide .box-frame { 
+  position: absolute; 
+  inset: 0; 
+  background-size: cover; 
+  background-position: center; 
+  opacity: 0; 
+} 
+
+.box-reveal { 
+  animation: boxReveal 600ms ease-in-out forwards; 
+} 
+
+@keyframes boxReveal { 
+  0% { opacity: 0; transform: scale(0.5); clip-path: inset(45% 45% 45% 45%); } 
+  100% { opacity: 1; transform: scale(1); clip-path: inset(0 0 0 0); } 
+} 
+
+@media (min-width: 769px) { 
+  .row-highlights-facility .section-highlights .image-slide { 
+    margin: 12px; 
+    max-width: calc(100% - 24px); 
+  } 
+} 
+
+/* Facility Grid: 2 Columns, 3 Rows */ 
+.facility-grid { 
+  display: grid; 
+  grid-template-columns: 1fr 1fr; 
+  grid-template-rows: repeat(3, 1fr); 
+  gap: 0.5rem; 
+  height: 100%; 
+  width: 100%; 
+  padding: 0.5vh; 
+  background-color: #e2dddd; 
+  position: relative; 
+} 
+
+.facility-grid::before { 
+  content: ''; 
+  position: absolute; 
+  left: 50%; 
+  top: 0; 
+  bottom: 0; 
+  width: 2px; 
+  background: #000; 
+} 
+
+.facility-item { 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  background: #e2dddd; 
+  padding: 0 0.5rem; 
+  border-radius: 4px; 
+  border: none; 
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05); 
+} 
+
+.facility-name { 
+  font-weight: bold; 
+  font-size: clamp(0.6rem, 1.6vw, 1rem);
+  color: #000000; 
+  flex: 1 1 65%;
+  padding-right: 4px;
+} 
+
+.facility-status { 
+  font-size: clamp(0.5rem, 1.2vw, 0.85rem); 
+  padding: clamp(1px, 0.3vh, 2px) clamp(2px, 0.6vw, 5px); 
+  border-radius: 4px; 
+  color: white; 
+  text-transform: uppercase; 
+  font-weight: bold; 
+  border: 2px solid #000; 
+  flex: 0 1 35%;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+} 
+
+.status-open { background-color: #00bf63; color:#fff; } 
+.status-closed { background-color: #e60d0d; color:#fff; } 
+.status-break-fac { background-color: #f8a820; color:#fff; } 
+
+/* 5. Footer (7vh) */ 
+footer { 
+  height: 5vh; 
+  background: linear-gradient(90deg, #000000, #3533cd); 
+  color: white; 
+  display: flex; 
+  align-items: center; 
+  padding: 0; 
+  overflow: hidden; 
+  position: relative; 
+  border-top: none; 
+  flex-shrink: 0; 
+  z-index: 10; 
+} 
+
+.ticker-wrap { 
+  flex: 1; 
+  overflow: hidden; 
+  height: 100%; 
+  width: 100%; 
+  position: relative; 
+  display: flex; 
+  align-items: center; 
+  justify-content: flex-start; 
+} 
+
+.ticker-move { 
+  display: inline-block; 
+  white-space: nowrap; 
+  animation: ticker 25s linear infinite; 
+  padding-left: 100%; 
+  font-size: clamp(1rem, 3vh, 2rem); 
+  line-height: 1; 
+  font-weight: bold; 
+  color: #fff; 
+  text-transform: uppercase; 
+} 
+
+@keyframes ticker { 
+  0% { transform: translate3d(0, 0, 0); } 
+  100% { transform: translate3d(-100%, 0, 0); } 
+} 
+
+/* Calendar styles - Updated to match request */
+.calendar-card { border: none; border-radius: 0; background: transparent; }
+.calendar-card .card-body { padding: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
+.calendar-title-wrap { background: #e2dddd; padding: 5px 0; border: none; text-align: center; }
+.calendar-title-inner { 
+    width: calc(100% - 24px);
+  margin: 0 auto;
+  box-sizing: border-box;
+  display: block; 
+  background: #005596; 
+  color: #ffffff; 
+  padding: 4px 0; 
+  font-weight: 800; 
+  font-size: clamp(1.2rem, 3vh, 1.8rem); 
+  text-transform: capitalize;
+  font-family: serif; /* Matches "Calendar" font in image roughly */
+}
+.calendar-gap { display:flex; } /* Remove gap if not needed or adjust */
+
+/* The main box containing header and grid */
+.cal-inner-container {
+    width: calc(100% - 0px);
+  margin: 0 auto;
+  box-sizing: border-box;
+  margin: 0 auto;
+    
+    background: #e2dddd;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Header Row: Legend - Month - Legend */
+.cal-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-bottom: 2px solid #000;
+    background: #e2dddd;
+    font-weight: bold;
+    font-size: clamp(0.7rem, 1.4vh, 0.9rem);
+}
+
+.cal-month-name {
+    font-weight: 800;
+    font-size: 1.2em;
+    text-transform: capitalize;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+.dot-event { background: #00bf63; }
+.dot-announcement { background: #f8a820; }
+
+/* Grid */
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-auto-rows: 1fr;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Day Names (S M T W...) */
+.cal-day-header {
+    border-right: 2px solid #000;
+    border-bottom: 2px solid #000;
+    background: #e2dddd;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 700;
+    font-size: clamp(0.8rem, 1.5vh, 1rem);
+    padding: 4px 0;
+    color: #000;
+}
+.cal-day-header:nth-child(7n) {
+    border-right: none;
+}
+
+.cal-cell {
+    border-right: 2px solid #000;
+    border-bottom: 2px solid #000;
+    position: relative;
+    padding: 2px;
+    background: #e2dddd;
+    min-height: 0;
+}
+
+/* Background Color Classes for Legend */
+.cal-cell.cell-event {
+    background-color: #00bf63;
+}
+.cal-cell.cell-announcement {
+    background-color: #f8a820;
+}
+.cal-cell.cell-both {
+    background: linear-gradient(135deg, #00bf63 50%, #f8a820 50%);
+}
+
+/* Remove borders for edges to match container border */
+.cal-cell:nth-child(7n) {
+    border-right: none;
+}
+
+.cal-date-num {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    font-weight: 700;
+    font-size: clamp(0.8rem, 1.5vh, 1rem);
+    color: #000;
+    z-index: 2; /* Ensure number is on top of background */
+}
+
+/* Hide dots container as we use background now */
+.cal-dots-container {
+    display: none;
+}

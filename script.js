@@ -65,7 +65,7 @@ async function fetchAnnouncements(limitCount = 3) {
     const db = getFirestoreDB();
     if (!db) throw new Error('no-db');
     const snap = await db.collection('announcements').orderBy('createdAt', 'desc').limit(limitCount).get();
-    const rows = snap.docs.map(d => d.data());
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (!rows || rows.length === 0) throw new Error('empty');
     return rows;
   } catch (e) {
@@ -83,18 +83,52 @@ async function addAnnouncement(title, date, time) {
   await logInfo('announcement_add', { title, date, time });
 }
 
+async function deleteAnnouncement(id) {
+  try {
+    const db = getFirestoreDB();
+    if (!db) return;
+    await db.collection('announcements').doc(id).delete();
+    await logInfo('announcement_delete', { id });
+  } catch {}
+}
+
+async function pinAnnouncement(id, pinned = true) {
+  try {
+    const db = getFirestoreDB();
+    if (!db) return;
+    if (pinned) {
+      const snap = await db.collection('announcements').where('pinned', '==', true).get();
+      const unpins = snap.docs
+        .filter(d => d.id !== id)
+        .map(d => db.collection('announcements').doc(d.id).update({ pinned: false }));
+      try { await Promise.all(unpins); } catch {}
+    }
+    await db.collection('announcements').doc(id).update({ pinned: !!pinned });
+    await logInfo('announcement_pin', { id, pinned });
+  } catch {}
+}
+
 async function fetchEvents(limitCount = 1) {
   try {
     const db = getFirestoreDB();
     if (!db) throw new Error('no-db');
     const snap = await db.collection('events').orderBy('createdAt', 'desc').limit(limitCount).get();
-    const rows = snap.docs.map(d => d.data());
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (!rows || rows.length === 0) throw new Error('empty');
     return rows;
   } catch (e) {
     if (e.message !== 'empty') console.error('fetchEvents error:', e);
     return [];
   }
+}
+
+async function deleteEvent(id) {
+  try {
+    const db = getFirestoreDB();
+    if (!db) return;
+    await db.collection('events').doc(id).delete();
+    await logInfo('event_delete', { id });
+  } catch {}
 }
 
 async function addEvent(title, date, image) {
@@ -105,6 +139,46 @@ async function addEvent(title, date, image) {
     try { await db.collection('events').add(doc); } catch {}
   }
   await logInfo('event_add', { title, date: displayDate });
+}
+
+async function fetchHighlights(limitCount = 5) {
+  try {
+    const db = getFirestoreDB();
+    if (!db) throw new Error('no-db');
+    const snap = await db.collection('highlights').orderBy('createdAt', 'desc').limit(limitCount).get();
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!rows || rows.length === 0) throw new Error('empty');
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+async function addHighlight(image) {
+  const db = getFirestoreDB();
+  const doc = { image, createdAt: new Date().toISOString() };
+  if (db) {
+    try { await db.collection('highlights').add(doc); } catch {}
+  }
+  await logInfo('highlight_add', {});
+}
+
+async function deleteHighlight(id) {
+  try {
+    const db = getFirestoreDB();
+    if (!db) return;
+    await db.collection('highlights').doc(id).delete();
+    await logInfo('highlight_delete', { id });
+  } catch {}
+}
+
+async function replaceHighlight(id, image) {
+  try {
+    const db = getFirestoreDB();
+    if (!db) return;
+    await db.collection('highlights').doc(id).update({ image, updatedAt: new Date().toISOString() });
+    await logInfo('highlight_replace', { id });
+  } catch {}
 }
 
 async function fetchSchedules(limitCount = 2) {
@@ -291,35 +365,662 @@ function showModal(title, html) {
   const t = document.getElementById('modal-title');
   const c = document.getElementById('modal-content');
   if (!overlay || !t || !c) return;
-  t.textContent = title;
+  // Clear paging state by default
+  window._modalPager = null;
+  const headerRow = t.parentElement;
+  if (headerRow) { headerRow.style.display = 'flex'; headerRow.style.flex = '0 0 10%'; }
+  const closeBtn = document.getElementById('modal-close');
+  const lower = String(title || '').toLowerCase();
+  const noClose = (lower === 'calendar' || lower === 'help');
+  if (closeBtn) closeBtn.style.display = noClose ? 'none' : 'inline-block';
+  if (lower === 'help') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
+  else if (lower === 'calendar') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
+  else { c.style.overflow = 'auto'; c.style.minHeight = '0'; }
+  t.textContent = (title || '').toUpperCase();
   c.innerHTML = html;
   overlay.style.display = 'flex';
+  window._lastModal = { title, html };
 }
 
 function hideModal() {
   const overlay = document.getElementById('modal-overlay');
   if (overlay) overlay.style.display = 'none';
+  window._modalPager = null;
+  if (window._modalHideTimer) {
+    clearTimeout(window._modalHideTimer);
+    window._modalHideTimer = null;
+  }
+}
+
+function showModalAuto(title, html, ms = 5000) {
+  const overlay = document.getElementById('modal-overlay');
+  const t = document.getElementById('modal-title');
+  const c = document.getElementById('modal-content');
+  if (!overlay || !t || !c) return;
+  // Clear paging state by default (callers like showEventsPaged will override this immediately after)
+  // window._modalPager = null; // actually showEventsPaged sets it BEFORE calling showModalAuto, so we shouldn't clear it here.
+  const headerRow = t.parentElement;
+  if (headerRow) { headerRow.style.display = 'flex'; headerRow.style.flex = '0 0 10%'; }
+  const closeBtn = document.getElementById('modal-close');
+  if (closeBtn) closeBtn.style.display = 'none';
+  const lower = String(title || '').toLowerCase();
+  if (lower === 'help') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
+  else if (lower === 'calendar') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
+  else { c.style.overflow = 'auto'; c.style.minHeight = '0'; }
+  t.textContent = (title || '').toUpperCase();
+  c.innerHTML = html;
+  overlay.style.display = 'flex';
+  clearTimeout(window._modalHideTimer);
+  window._modalHideTimer = setTimeout(() => { overlay.style.display = 'none'; }, ms);
+}
+function renderCalendarHtml(anns, evs) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const monthNames = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const firstDay = new Date(year, month, 1).getDay(); // 0 = Sunday
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const checkDate = (dstr, day) => {
+    if (!dstr) return false;
+    const d = new Date(dstr.replace(/\,/g,''));
+    return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+  };
+  const inMonth = (dstr) => {
+    if (!dstr) return false;
+    const d = new Date(dstr.replace(/\,/g,''));
+    return d.getFullYear() === year && d.getMonth() === month;
+  };
+  const getCellClass = (day) => {
+    const hasEvent = (evs || []).some(e => checkDate(e.date, day));
+    const hasAnn = (anns || []).some(a => checkDate(a.date, day));
+    if (hasEvent && hasAnn) return 'cell-both';
+    if (hasEvent) return 'cell-event';
+    if (hasAnn) return 'cell-announcement';
+    return '';
+  };
+  let gridHtml = '';
+  const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  days.forEach(d => gridHtml += `<div class="cal-day-header">${d}</div>`);
+  for (let i = 0; i < firstDay; i++) gridHtml += `<div class="cal-cell empty"></div>`;
+  for (let i = 1; i <= daysInMonth; i++) {
+    gridHtml += `
+      <div class="cal-cell ${getCellClass(i)}">
+        <div class="cal-date-num">${i}</div>
+      </div>
+    `;
+  }
+  return `
+    <div class="cal-inner-container" style="display:flex; flex-direction:column; height:100%;">
+      <div class="cal-header-row" style="flex:0 0 auto;">
+         <div class="legend-item left"><div class="legend-dot dot-event"></div> Event</div>
+         <div class="cal-month-name">${monthNames[month]} ${year}</div>
+         <div class="legend-item right"><div class="legend-dot dot-announcement"></div> Announcement</div>
+      </div>
+      <div class="cal-grid" style="flex:1 1 0; min-height:0;">
+         ${gridHtml}
+      </div>
+      ${((evs||[]).some(e => inMonth(e.date)) || (anns||[]).some(a => inMonth(a.date))) ? '' : `<div style="text-align:center; padding:10px; color:#4a5568;">No schedule for this month</div>`}
+    </div>
+  `;
+}
+function showModalNoHeader(html, ms = 5000) {
+  const overlay = document.getElementById('modal-overlay');
+  const t = document.getElementById('modal-title');
+  const c = document.getElementById('modal-content');
+  if (!overlay || !t || !c) return;
+  const headerRow = t.parentElement;
+  if (headerRow) { headerRow.style.display = 'flex'; headerRow.style.flex = '0 0 10%'; }
+  const closeBtn = document.getElementById('modal-close');
+  if (closeBtn) closeBtn.style.display = 'none';
+  t.textContent = (t.textContent || '').toUpperCase();
+  c.innerHTML = html;
+  overlay.style.display = 'flex';
+  clearTimeout(window._modalHideTimer);
+  window._modalHideTimer = setTimeout(() => { overlay.style.display = 'none'; }, ms);
 }
 
 function normalizeText(s) {
   return (s || '').toLowerCase().replace(/[\.,!?]/g, '').trim();
 }
 
-function commandsHTML() {
-  const cmds = [
-    'Hey Flexi, full announcements list',
-    'Hey Flexi, teachers availability',
-    'Hey Flexi, upcoming events',
-    'Hey Flexi, faculty status',
-    'Hey Flexi, calendar highlights'
+function getHelpData() {
+  const basic = [
+    ['Help', 'Shows this help pop up'],
+    ['Announcements', 'Shows the full list of announcements'],
+    ['Events', 'Shows the full list of events'],
+    ['Highlights', 'Shows the highlights gallery'],
+    ['Calendar', 'Shows the schedule in calendar'],
+    ['Next', 'Moves to the next page within the current pop up'],
+    ['Previous', 'Moves to the previous page within the current pop up'],
+    ['Close', 'Closes the current pop up']
   ];
-  return '<div>' + cmds.map(c => `<div>• ${c}</div>`).join('') + '</div>';
+  const calendarCmds = [
+    ['Today', 'Filters items scheduled today'],
+    ['Tomorrow', 'Filters items scheduled tomorrow'],
+    ['Yesterday', 'Filters items scheduled yesterday'],
+    ['This week', 'Filters items scheduled this week'],
+    ['Next week', 'Filters items scheduled next week'],
+    ['This month', 'Filters items scheduled this month'],
+    ['Next month', 'Filters items scheduled next month'],
+    ['Specified month', 'Example: January'],
+    ['Specified date', 'Example: 5'],
+    ['Specified day', 'Example: Monday'],
+    ['Month-date', 'Example: January 14'],
+    ['Month-date-year', 'Example: January 2, 2026']
+  ];
+  return { basic, calendarCmds };
+}
+function renderHelpPage(pageIdx, prevIdx) {
+  const { basic, calendarCmds } = getHelpData();
+  const dir = prevIdx == null ? '0px' : (pageIdx > prevIdx ? '20px' : '-20px');
+  const title = pageIdx === 0 ? 'Basic Commands' : 'Calendar Commands';
+  let itemsSource;
+  if (pageIdx === 0) {
+    itemsSource = basic;
+  } else if (pageIdx === 1) {
+    itemsSource = calendarCmds.slice(0, 7);
+  } else {
+    itemsSource = calendarCmds.slice(7);
+  }
+  const items = itemsSource
+    .map(([name, desc]) => `<div style="margin:2px 0;">• <b>${name}</b> — ${desc}</div>`).join('');
+  const totalPages = 3;
+  const dots = Array.from({ length: totalPages }).map((_, i) => `<span class="dot ${i===pageIdx?'active':''}" style="width:8px;height:8px;border-radius:50%;background:#000;opacity:${i===pageIdx?1:0.4};"></span>`).join('');
+  return `
+    <div style="display:flex; flex-direction:column; height:100%;">
+      <div class="help-fit" style="flex:1 1 0; min-height:0; display:flex; flex-direction:column; gap:8px; animation: helpSlideIn 240ms ease; will-change: transform, opacity; padding: 2px 0; font-size:clamp(0.8rem, 1.5vw, 1rem); line-height:1.5; overflow:hidden; transform-origin: top left;">
+        <div style="margin-bottom:6px; font-weight:bold; font-size:clamp(0.95rem, 1.8vw, 1.12rem);">Start with “Hey flexi” or “Hey flexy”, then say:</div>
+        <div style="font-weight:bold; margin-bottom:4px; font-size:clamp(0.95rem, 1.8vw, 1.12rem);">${title}</div>
+        ${items}
+      </div>
+      <div class="dots-wrap" style="display:flex; gap:6px; justify-content:center; padding:8px 0; flex:0 0 auto;">${dots}</div>
+      <style>
+        @keyframes helpSlideIn { from { transform: translateX(${dir}); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+      </style>
+    </div>
+  `;
+}
+function showHelpPaged(pageIdx = 0, prevIdx = null) {
+  window._modalPager = 'help';
+  window._helpPageIndex = Math.max(0, Math.min(pageIdx, 2));
+  const html = renderHelpPage(window._helpPageIndex, prevIdx);
+  showModalAuto('HELP', html, 600000);
+  setTimeout(() => fitHelpText(), 0);
 }
 
+function fitHelpText() {
+  try {
+    const c = document.getElementById('modal-content');
+    if (!c) return;
+    const el = c.querySelector('.help-fit');
+    if (!el) return;
+    const dots = c.querySelector('.dots-wrap');
+    const availH = Math.max(0, c.clientHeight - (dots ? dots.offsetHeight : 0) - 4);
+    const availW = Math.max(0, c.clientWidth - 4);
+    let scale = 1.0;
+    el.style.transformOrigin = 'top left';
+    el.style.transform = `scale(${scale})`;
+    for (let i = 0; i < 20; i++) {
+      const r = el.getBoundingClientRect();
+      const hOK = r.height <= availH;
+      const wOK = r.width <= availW;
+      if (hOK && wOK) break;
+      const ratioH = (availH > 0 && r.height > 0) ? (availH / r.height) : 1;
+      const ratioW = (availW > 0 && r.width > 0) ? (availW / r.width) : 1;
+      const next = Math.min(ratioH, ratioW) * 0.985;
+      if (!(next < 1)) break;
+      scale = Math.max(0.6, scale * next);
+      el.style.transform = `scale(${scale})`;
+    }
+  } catch (e) {
+    console.error('fitHelpText error', e);
+  }
+}
+
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+function renderAnnouncementsPage(anns, pageIdx, prevIdx) {
+  const pages = chunk(anns, 5);
+  const cur = pages[pageIdx] || [];
+  const dir = prevIdx == null ? '0px' : (pageIdx > prevIdx ? '20px' : '-20px');
+  const dots = pages.map((_, i) => `<span class="dot ${i===pageIdx?'active':''}" style="width:8px;height:8px;border-radius:50%;background:#000;opacity:${i===pageIdx?1:0.4};"></span>`).join('');
+  const items = cur.map(a => `
+    <div class="announcement-item" style="flex:1; min-height:0; display:flex; align-items:center; gap:10px; padding:8px;">
+      <div class="icon">${a.icon || '📢'}</div>
+      <div class="text" style="overflow:hidden;">
+        <h3>${a.title}</h3>
+        ${a.description ? `<p>${a.description}</p>` : ''}
+        <p style="font-size:0.9rem; color:#334155;">${a.time} • ${a.date}</p>
+      </div>
+    </div>
+  `).join('');
+  return `
+    <div style="display:flex; flex-direction:column; height:100%;">
+      <div style="flex:1 1 0; display:flex; flex-direction:column; gap:8px; animation: annSlideIn 240ms ease; will-change: transform, opacity;">
+        ${items || '<div style="flex:1; display:flex; align-items:center; justify-content:center; color:#4a5568;">No schedule</div>'}
+      </div>
+      ${pages.length>1 ? `<div class="dots-wrap" style="display:flex; gap:6px; justify-content:center; padding:12px 0; flex:0 0 auto;">${dots}</div>` : ''}
+      <style>
+        @keyframes annSlideIn { from { transform: translateX(${dir}); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+      </style>
+    </div>
+  `;
+}
+
+function showAnnouncementsPaged(anns, pageIdx = 0, prevIdx = null) {
+  window._modalPager = 'announcements';
+  window._annFlat = anns || [];
+  window._annPageIndex = pageIdx;
+  const html = renderAnnouncementsPage(window._annFlat, pageIdx, prevIdx);
+  showModalAuto('Announcements', html, 600000);
+}
+
+function advanceModalPage(step = 1) {
+  if (window._modalPager === 'announcements' && Array.isArray(window._annFlat)) {
+    const totalPages = Math.ceil(window._annFlat.length / 5);
+    if (totalPages <= 1) return false;
+    const prev = Math.max(0, Math.min(window._annPageIndex || 0, totalPages - 1));
+    if (step > 0 && prev >= totalPages - 1) return false;
+    if (step < 0 && prev <= 0) return false;
+    const next = prev + step;
+    window._annPageIndex = next;
+    const html = renderAnnouncementsPage(window._annFlat, next, prev);
+    showModalAuto('Announcements', html, 600000);
+    return true;
+  }
+  if (window._modalPager === 'events' && Array.isArray(window._eventsFlat)) {
+    // Events pages are built by renderEventsPage's pagination rules; compute total using the same logic
+    const _pages = (function(list){
+      const arr = Array.isArray(list) ? list.slice() : [];
+      const pages = [];
+      let i = 0;
+      while (i < arr.length) {
+        const remain = arr.length - i;
+        if (remain >= 6) { pages.push(arr.slice(i, i + 6)); i += 6; }
+        else if (remain === 5) { pages.push(arr.slice(i, i + 4)); i += 4; pages.push(arr.slice(i, i + 1)); i += 1; }
+        else if (remain === 4) { pages.push(arr.slice(i, i + 4)); i += 4; }
+        else if (remain === 3) { pages.push(arr.slice(i, i + 3)); i += 3; }
+        else if (remain === 2) { pages.push(arr.slice(i, i + 2)); i += 2; }
+        else { pages.push(arr.slice(i, i + 1)); i += 1; }
+      }
+      return pages.length ? pages : [[]];
+    })(window._eventsFlat);
+    const totalPages = _pages.length;
+    if (totalPages <= 1) return false;
+    const prev = Math.max(0, Math.min(window._eventsPageIndex || 0, totalPages - 1));
+    if (step > 0 && prev >= totalPages - 1) return false;
+    if (step < 0 && prev <= 0) return false;
+    const next = prev + step;
+    window._eventsPageIndex = next;
+    const html = renderEventsPage(window._eventsFlat, next, prev);
+    showModalAuto('UPCOMING EVENTS', html, 600000);
+    return true;
+  }
+  if (window._modalPager === 'combined' && Array.isArray(window._combinedPages)) {
+    const totalPages = window._combinedPages.length;
+    if (totalPages <= 1) return false;
+    const prev = Math.max(0, Math.min(window._combinedPageIndex || 0, totalPages - 1));
+    if (step > 0 && prev >= totalPages - 1) return false;
+    if (step < 0 && prev <= 0) return false;
+    const next = prev + step;
+    window._combinedPageIndex = next;
+    const html = renderCombinedPage(window._combinedPages[next], next, totalPages, prev);
+    showModalAuto('Schedule', html, 600000);
+    return true;
+  }
+  if (window._modalPager === 'help') {
+    const totalPages = 3;
+    const prev = Math.max(0, Math.min(window._helpPageIndex || 0, totalPages - 1));
+    if (step > 0 && prev >= totalPages - 1) return false;
+    if (step < 0 && prev <= 0) return false;
+    const next = prev + step;
+    window._helpPageIndex = next;
+    showHelpPaged(next, prev);
+    return true;
+  }
+  return false;
+}
+
+function renderEventsPage(evs, pageIdx, prevIdx) {
+  const eventsToPages = (list) => {
+    const arr = Array.isArray(list) ? list.slice() : [];
+    const pages = [];
+    let i = 0;
+    while (i < arr.length) {
+      const remain = arr.length - i;
+      if (remain >= 6) {
+        pages.push(arr.slice(i, i + 6));
+        i += 6;
+      } else if (remain === 5) {
+        pages.push(arr.slice(i, i + 4));
+        i += 4;
+        pages.push(arr.slice(i, i + 1));
+        i += 1;
+      } else if (remain === 4) {
+        pages.push(arr.slice(i, i + 4));
+        i += 4;
+      } else if (remain === 3) {
+        pages.push(arr.slice(i, i + 2));
+        i += 2;
+        pages.push(arr.slice(i, i + 1));
+        i += 1;
+      } else if (remain === 2) {
+        pages.push(arr.slice(i, i + 2));
+        i += 2;
+      } else { // 1
+        pages.push(arr.slice(i, i + 1));
+        i += 1;
+      }
+    }
+    if (!pages.length) pages.push([]);
+    return pages;
+  };
+  const pages = eventsToPages(evs);
+  const cur = pages[pageIdx] || [];
+  const dir = prevIdx == null ? '0px' : (pageIdx > prevIdx ? '20px' : '-20px');
+  const dots = pages.map((_, i) => `<span class="dot ${i===pageIdx?'active':''}" style="width:8px;height:8px;border-radius:50%;background:#000;opacity:${i===pageIdx?1:0.4};"></span>`).join('');
+  const count = cur.length;
+  let gridCols = 1;
+  let gridRowsCss = `repeat(${count}, 1fr)`;
+  if (count === 6) { gridCols = 2; gridRowsCss = `repeat(3, 1fr)`; }
+  else if (count === 4) { gridCols = 2; gridRowsCss = `repeat(2, 1fr)`; }
+  else { gridCols = 1; gridRowsCss = `repeat(${Math.max(1,count)}, 1fr)`; }
+  const items = cur.map((e, i) => {
+    const span = '';
+    return `
+      <div style="display:flex; flex-direction:column; gap:6px; padding:6px; ${span}">
+        <div style="flex:1; width:100%; background-image:url('${e.image}'); background-size:cover; background-position:center; border-radius:4px;"></div>
+        <div style="font-weight:bold; text-align:center;">${e.title}</div>
+        <div style="color:#4a5568; font-size:0.85rem; text-align:center;">${e.date}</div>
+      </div>
+    `;
+  }).join('');
+  return `
+    <div style="display:flex; flex-direction:column; height:100%;">
+      <div style="flex:1; animation: evSlideIn 240ms ease; will-change: transform, opacity; display:grid; grid-template-columns: repeat(${gridCols}, 1fr); grid-template-rows: ${gridRowsCss}; gap: 12px;">
+        ${items || '<div style="grid-column: 1 / -1; display:flex; align-items:center; justify-content:center; color:#4a5568;">No schedule</div>'}
+      </div>
+      ${pages.length>1 ? `<div class="dots-wrap" style="display:flex; gap:6px; justify-content:center; padding:12px 0; flex:0 0 auto;">${dots}</div>` : ''}
+      <style>
+        @keyframes evSlideIn { from { transform: translateX(${dir}); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+      </style>
+    </div>
+  `;
+}
+
+function showEventsPaged(evs, pageIdx = 0, prevIdx = null) {
+  window._modalPager = 'events';
+  window._eventsFlat = evs || [];
+  window._eventsPageIndex = pageIdx;
+  const html = renderEventsPage(window._eventsFlat, pageIdx, prevIdx);
+  showModalAuto('UPCOMING EVENTS', html, 600000);
+}
+function renderAnnListCompact(anns) {
+  const items = anns.map(a => `
+    <div class="announcement-item" style="flex:1; min-height:0; display:flex; align-items:center; gap:10px; padding:8px;">
+      <div class="icon">${a.icon || '📢'}</div>
+      <div class="text" style="overflow:hidden; display:flex; flex-direction:column;">
+        <h3 style="margin:0;">${a.title}</h3>
+        ${a.description ? `<p style="margin:2px 0 0;">${a.description}</p>` : ''}
+        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">${a.time || ''} ${a.time ? '•' : ''} ${a.date || ''}</p>
+      </div>
+    </div>
+  `).join('');
+  return `<div style="display:flex; flex-direction:column; height:100%; gap:8px;">${items || '<div style="flex:1; display:flex; align-items:center; justify-content:center; color:#4a5568;">No announcements</div>'}</div>`;
+}
+function renderEvtListCompact(evs) {
+  const items = evs.map(e => `
+    <div style="flex:1; min-height:0; display:flex; flex-direction:column; gap:6px; padding:6px;">
+      <div style="flex:1; width:100%; background-image:url('${e.image}'); background-size:cover; background-position:center; border-radius:4px;"></div>
+      <div style="font-weight:bold; text-align:center;">${e.title}</div>
+      <div style="color:#4a5568; font-size:0.85rem; text-align:center;">${e.date}</div>
+    </div>
+  `).join('');
+  return `<div style="display:flex; flex-direction:column; height:100%; gap:8px;">${items || '<div style="flex:1; display:flex; align-items:center; justify-content:center; color:#4a5568;">No events</div>'}</div>`;
+}
+function renderAnnItemCompact(a) {
+  return `
+    <div class="announcement-item" style="flex:1; min-height:0; display:flex; align-items:center; gap:10px; padding:8px;">
+      <div class="icon">${a.icon || '📢'}</div>
+      <div class="text" style="overflow:hidden; display:flex; flex-direction:column;">
+        <h3 style="margin:0;">${a.title}</h3>
+        ${a.description ? `<p style="margin:2px 0 0;">${a.description}</p>` : ''}
+        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">${a.time || ''} ${a.time ? '•' : ''} ${a.date || ''}</p>
+      </div>
+    </div>
+  `;
+}
+function renderEvtItemCompact(e) {
+  return `
+    <div style="flex:1; min-height:0; display:flex; flex-direction:column; gap:6px; padding:6px;">
+      <div style="flex:1; width:100%; background-image:url('${e.image}'); background-size:cover; background-position:center; border-radius:4px;"></div>
+      <div style="font-weight:bold; text-align:center;">${e.title}</div>
+      <div style="color:#4a5568; font-size:0.85rem; text-align:center;">${e.date}</div>
+    </div>
+  `;
+}
+function makeCombinedPages(anns, evs, limit = 6) {
+  const a = Array.isArray(anns) ? anns.slice() : [];
+  const b = Array.isArray(evs) ? evs.slice() : [];
+  const pages = [];
+  let ai = 0, bi = 0;
+  const MAX = 5;
+  while (ai < a.length || bi < b.length) {
+    let takeA = 0, takeB = 0;
+    const aLeft = a.length - ai;
+    const bLeft = b.length - bi;
+    if (aLeft > 0) {
+      if (aLeft >= 5) { takeA = 5; takeB = 0; }
+      else if (aLeft === 4) { takeA = 4; takeB = 0; }
+      else if (aLeft === 3) { takeA = 3; takeB = bLeft > 0 ? 1 : 0; }
+      else if (aLeft === 2) { takeA = 2; takeB = bLeft > 0 ? 1 : 0; }
+      else if (aLeft === 1) { takeA = 1; takeB = bLeft > 0 ? 1 : 0; }
+    } else {
+      if (bLeft >= 6) { takeB = 6; }
+      else if (bLeft === 5) { takeB = 4; }
+      else if (bLeft === 4) { takeB = 4; }
+      else if (bLeft === 3) { takeB = 2; }
+      else if (bLeft === 2) { takeB = 2; }
+      else { takeB = 1; }
+    }
+    pages.push({ anns: a.slice(ai, ai + takeA), evs: b.slice(bi, bi + takeB) });
+    ai += takeA; bi += takeB;
+  }
+  if (!pages.length) pages.push({ anns: [], evs: [] });
+  return pages;
+}
+function renderCombinedPage(page, pageIdx, totalPages, prevIdx) {
+  const dir = prevIdx == null ? '0px' : (pageIdx > prevIdx ? '20px' : '-20px');
+  const dots = Array.from({ length: totalPages }).map((_, i) => `<span class="dot ${i===pageIdx?'active':''}" style="width:8px;height:8px;border-radius:50%;background:#000;opacity:${i===pageIdx?1:0.4};"></span>`).join('');
+  const a = page.anns || [];
+  const e = page.evs || [];
+  const renderEventsSimple = (list) => {
+    const count = list.length;
+    let gridCols = 1;
+    let gridRowsCss = `repeat(${Math.max(1,count)}, 1fr)`;
+    if (count === 6) { gridCols = 2; gridRowsCss = `repeat(3, 1fr)`; }
+    else if (count === 4) { gridCols = 2; gridRowsCss = `repeat(2, 1fr)`; }
+    const items = list.map((ev) => `
+      <div style="display:flex; flex-direction:column; gap:6px; padding:6px;">
+        <div style="flex:1; width:100%; background-image:url('${ev.image}'); background-size:cover; background-position:center; border-radius:4px;"></div>
+        <div style="font-weight:bold; text-align:center;">${ev.title}</div>
+        <div style="color:#4a5568; font-size:0.85rem; text-align:center;">${ev.date}</div>
+      </div>
+    `).join('');
+    return `
+      <div style="flex:1 1 0; animation: combSlideIn 240ms ease; display:grid; grid-template-columns: repeat(${gridCols}, 1fr); grid-template-rows: ${gridRowsCss}; gap: 12px;">
+        ${items || '<div style="display:flex; align-items:center; justify-content:center; color:#4a5568;">No events</div>'}
+      </div>
+    `;
+  };
+  if (!a.length && e.length) {
+    const eOnly = renderEventsSimple(e);
+    return `
+      <div style="display:flex; flex-direction:column; height:100%;">
+        <div style="flex:1 1 0; min-height:0; display:flex; flex-direction:column;">
+          ${eOnly}
+        </div>
+        ${totalPages>1 ? `<div class="dots-wrap" style="display:flex; gap:6px; justify-content:center; padding:12px 0; flex:0 0 auto;">${dots}</div>` : ''}
+        <style>
+          @keyframes combSlideIn { from { transform: translateX(${dir}); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        </style>
+      </div>
+    `;
+  }
+  if (!a.length && !e.length) {
+    return `
+      <div style="display:flex; flex-direction:column; height:100%;">
+        <div style="flex:1 1 0; min-height:0; display:flex; align-items:center; justify-content:center; color:#4a5568;">
+          No schedule
+        </div>
+      </div>
+    `;
+  }
+  const aHtml = a.map(renderAnnItemCompact).join('') || '<div style="flex:1; display:flex; align-items:center; justify-content:center; color:#4a5568;">No announcements</div>';
+  const eHtmlBlock = e.length ? renderEventsSimple(e.slice(0,1)) : '';
+  let aH = '100%';
+  let eH = '0%';
+  if (a.length === 5) { aH = '100%'; eH = '0%'; }
+  else if (a.length === 4) { aH = '100%'; eH = '0%'; }
+  else if ((a.length === 3 || a.length === 2) && e.length >= 1) { aH = '60%'; eH = '40%'; }
+  else if (a.length === 1 && e.length >= 1) { aH = '20%'; eH = '80%'; }
+  else if (!a.length && e.length) { aH = '0%'; eH = '100%'; }
+  return `
+    <div style="display:flex; flex-direction:column; height:100%;">
+      <div style="flex:1 1 0; min-height:0; display:flex; flex-direction:column;">
+        ${a.length ? `<div style="flex:0 0 ${aH}; min-height:0; animation: combSlideIn 240ms ease; display:flex; flex-direction:column; gap:0.5em;">${aHtml}</div>` : ''}
+        ${a.length && e.length ? `<div style="height:1em; flex:0 0 auto;"></div>` : ''}
+        ${e.length ? `<div style="flex:0 0 ${eH}; min-height:0; display:flex; flex-direction:column;">${eHtmlBlock}</div>` : ''}
+      </div>
+      ${totalPages>1 ? `<div class="dots-wrap" style="display:flex; gap:6px; justify-content:center; padding:12px 0; flex:0 0 auto;">${dots}</div>` : ''}
+      <style>
+        @keyframes combSlideIn { from { transform: translateX(${dir}); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+      </style>
+    </div>
+  `;
+}
+function showCombinedSchedulePaged(anns, evs, pageIdx = 0, prevIdx = null) {
+  window._modalPager = 'combined';
+  window._combinedPages = makeCombinedPages(anns || [], evs || [], 5);
+  window._combinedPageIndex = Math.max(0, Math.min(pageIdx, window._combinedPages.length - 1));
+  const html = renderCombinedPage(window._combinedPages[window._combinedPageIndex], window._combinedPageIndex, window._combinedPages.length, prevIdx);
+  showModalAuto('Schedule', html, 600000);
+}
+function _parseDateSafe(dstr) {
+  if (!dstr) return null;
+  try {
+    return new Date(String(dstr).replace(/\,/g,''));
+  } catch { return null; }
+}
+function _deriveTags(entry) {
+  const d = _parseDateSafe(entry && entry.date);
+  if (!d || isNaN(d.getTime())) return { year:null, monthIndex:null, monthName:null, date:null, weekdayIndex:null, weekdayName:null };
+  const monthNames = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+  const weekdayNames = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+  return {
+    year: d.getFullYear(),
+    monthIndex: d.getMonth(),
+    monthName: monthNames[d.getMonth()],
+    date: d.getDate(),
+    weekdayIndex: d.getDay(),
+    weekdayName: weekdayNames[d.getDay()]
+  };
+}
+function detectTagQuery(ntext) {
+  const n = normalizeText(ntext);
+  const out = { year:null, monthName:null, date:null, weekdayName:null, range:null, want:'both' };
+  if (n.includes('announcements')) out.want = 'announcements';
+  if (n.includes('events')) out.want = (out.want==='announcements' ? 'both' : 'events');
+  if (n.includes('today')) {
+    const now = new Date(); const from = new Date(now.setHours(0,0,0,0)); const to = new Date(now.setHours(23,59,59,999));
+    out.range = { from, to }; return out;
+  }
+  if (n.includes('yesterday')) {
+    const d = new Date(); d.setDate(d.getDate()-1);
+    out.range = { from: new Date(d.setHours(0,0,0,0)), to: new Date(d.setHours(23,59,59,999)) }; return out;
+  }
+  if (n.includes('tomorrow')) {
+    const d = new Date(); d.setDate(d.getDate()+1);
+    out.range = { from: new Date(d.setHours(0,0,0,0)), to: new Date(d.setHours(23,59,59,999)) }; return out;
+  }
+  if (n.includes('this week')) {
+    const d = new Date();
+    const day = d.getDay();
+    const diffToMonday = (day+6)%7;
+    const monday = new Date(d); monday.setDate(d.getDate()-diffToMonday); monday.setHours(0,0,0,0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+    out.range = { from: monday, to: sunday }; return out;
+  }
+  if (n.includes('next week')) {
+    const d = new Date();
+    const day = d.getDay();
+    const diffToMonday = (day+6)%7;
+    const monday = new Date(d); monday.setDate(d.getDate()-diffToMonday+7); monday.setHours(0,0,0,0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+    out.range = { from: monday, to: sunday }; return out;
+  }
+  if (n.includes('this month')) {
+    const d = new Date();
+    const first = new Date(d.getFullYear(), d.getMonth(), 1, 0,0,0,0);
+    const last = new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999);
+    out.range = { from: first, to: last }; return out;
+  }
+  if (n.includes('next month')) {
+    const d = new Date();
+    const first = new Date(d.getFullYear(), d.getMonth()+1, 1, 0,0,0,0);
+    const last = new Date(d.getFullYear(), d.getMonth()+2, 0, 23,59,59,999);
+    out.range = { from: first, to: last }; return out;
+  }
+  const yearMatch = n.match(/\b(19|20)\d{2}\b/);
+  if (yearMatch) out.year = parseInt(yearMatch[0],10);
+  const monthMatch = n.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/);
+  if (monthMatch) {
+    const map = { jan:'january', feb:'february', mar:'march', apr:'april', may:'may', jun:'june', jul:'july', aug:'august', sep:'september', oct:'october', nov:'november', dec:'december' };
+    const k = monthMatch[0].slice(0,3);
+    out.monthName = map[k] || monthMatch[0];
+  }
+  const nums = (n.match(/\b\d{1,4}\b/g) || []).map(s => parseInt(s,10));
+  const numDate = nums.find(x => x >= 1 && x <= 31 && x !== out.year);
+  if (numDate != null) out.date = numDate;
+  const weekdayMatch = n.match(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
+  if (weekdayMatch) out.weekdayName = weekdayMatch[1] || weekdayMatch[0];
+  return out;
+}
+function hasTagQuery(ntext) {
+  const t = detectTagQuery(ntext);
+  return !!(t.year || t.monthName || t.date || t.weekdayName || t.range);
+}
+function filterByTags(arr, tags) {
+  if (!Array.isArray(arr) || !arr.length) return [];
+  if (tags.range) {
+    return arr.filter(x => {
+      const d = _parseDateSafe(x.date);
+      return d && d >= tags.range.from && d <= tags.range.to;
+    });
+  }
+  return arr.filter(x => {
+    const t = _deriveTags(x);
+    if (tags.year != null && t.year !== tags.year) return false;
+    if (tags.monthName && t.monthName !== tags.monthName) return false;
+    if (tags.date != null && t.date !== tags.date) return false;
+    if (tags.weekdayName && t.weekdayName !== tags.weekdayName) return false;
+    return true;
+  });
+}
 function parseDate(text) {
   const now = new Date();
   const n = normalizeText(text);
   if (n.includes('today')) return { from: new Date(now.setHours(0,0,0,0)), to: new Date(now.setHours(23,59,59,999)) };
+  if (n.includes('yesterday')) {
+    const d = new Date(); d.setDate(d.getDate()-1);
+    return { from: new Date(d.setHours(0,0,0,0)), to: new Date(d.setHours(23,59,59,999)) };
+  }
   if (n.includes('tomorrow')) {
     const d = new Date(); d.setDate(d.getDate()+1);
     return { from: new Date(d.setHours(0,0,0,0)), to: new Date(d.setHours(23,59,59,999)) };
@@ -332,6 +1033,36 @@ function parseDate(text) {
     const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
     return { from: monday, to: sunday };
   }
+  if (n.includes('next week')) {
+    const d = new Date();
+    const day = d.getDay();
+    const diffToMonday = (day+6)%7;
+    const monday = new Date(d); monday.setDate(d.getDate()-diffToMonday+7); monday.setHours(0,0,0,0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+    return { from: monday, to: sunday };
+  }
+  if (n.includes('this month')) {
+    const d = new Date();
+    const first = new Date(d.getFullYear(), d.getMonth(), 1, 0,0,0,0);
+    const last = new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999);
+    return { from: first, to: last };
+  }
+  if (n.includes('next month')) {
+    const d = new Date();
+    const first = new Date(d.getFullYear(), d.getMonth()+1, 1, 0,0,0,0);
+    const last = new Date(d.getFullYear(), d.getMonth()+2, 0, 23,59,59,999);
+    return { from: first, to: last };
+  }
+  const num = n.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+  if (num) {
+    const mm = parseInt(num[1],10);
+    const dd = parseInt(num[2],10);
+    const yy = num[3] ? parseInt(num[3],10) : new Date().getFullYear();
+    const year = yy < 100 ? (2000 + yy) : yy;
+    const d = new Date(year, mm-1, dd, 0,0,0,0);
+    const e = new Date(year, mm-1, dd, 23,59,59,999);
+    return { from: d, to: e };
+  }
   const m = n.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})(?:\s*(\d{4}))?/);
   if (m) {
     const monthNames = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
@@ -341,6 +1072,15 @@ function parseDate(text) {
     const d = new Date(year, month, day, 0,0,0,0);
     const e = new Date(year, month, day, 23,59,59,999);
     return { from: d, to: e };
+  }
+  const mOnly = n.match(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*(?:\s*(\d{4}))?$/);
+  if (mOnly) {
+    const monthNames = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const month = monthNames.indexOf(mOnly[1]);
+    const year = mOnly[2] ? parseInt(mOnly[2],10) : new Date().getFullYear();
+    const first = new Date(year, month, 1, 0,0,0,0);
+    const last = new Date(year, month+1, 0, 23,59,59,999);
+    return { from: first, to: last };
   }
   const range = n.match(/from\s+([a-z]+\s+\d{1,2})(?:\s*(\d{4}))?\s+to\s+([a-z]+\s+\d{1,2})(?:\s*(\d{4}))?/);
   if (range) {
@@ -352,16 +1092,142 @@ function parseDate(text) {
   return null;
 }
 
+function closeAllPopups() {
+  hideModal();
+  hideOverlay();
+}
+
+function scheduleCalendarCommand(text) {
+  const t = normalizeText(text);
+  window._calendarBufferedText = (window._calendarBufferedText ? (window._calendarBufferedText + ' ' + t) : t);
+  clearTimeout(window._calendarDebounceTimer);
+  window._calendarDebounceTimer = setTimeout(executeBufferedCalendar, 800);
+}
+
+async function executeBufferedCalendar() {
+  try {
+    const q = normalizeText(window._calendarBufferedText || '');
+    window._calendarBufferedText = '';
+    if (!q) return;
+    closeAllPopups();
+    window._busyCalendar = true;
+    showModalNoHeader('<div>Loading...</div>', 600000);
+    const annsAll = await fetchAnnouncements(200);
+    const evsAll = await fetchEvents(200);
+    const qtags = detectTagQuery(q);
+    const hasTags = !!(qtags.year || qtags.monthName || qtags.date || qtags.weekdayName || qtags.range);
+    if (hasTags) {
+      const anns = filterByTags(annsAll, qtags);
+      const evs = filterByTags(evsAll, qtags);
+      window._busyCalendar = false;
+      if (qtags.want === 'announcements') return showAnnouncementsPaged(anns, 0, null);
+      if (qtags.want === 'events') return showEventsPaged(evs, 0, null);
+      return showCombinedSchedulePaged(anns, evs, 0, null);
+    }
+    const range = parseDate(q);
+    if (range) {
+      const inRangeAnn = (a) => {
+        const dstr = (a.date || '').replace(/\,/g,''); const d = new Date(dstr);
+        return d >= range.from && d <= range.to;
+      };
+      const inRangeEvt = (e) => {
+        const dstr = (e.date || '').replace(/\,/g,''); const d = new Date(dstr);
+        return d >= range.from && d <= range.to;
+      };
+      const anns = annsAll.filter(inRangeAnn);
+      const evs = evsAll.filter(inRangeEvt);
+      window._busyCalendar = false;
+      return showCombinedSchedulePaged(anns, evs, 0, null);
+    }
+    if (q.includes('calendar')) {
+      const html = renderCalendarHtml(annsAll, evsAll);
+      window._busyCalendar = false;
+      return showModal('Calendar', html);
+    }
+    window._busyCalendar = false;
+  } catch (e) {
+    window._busyCalendar = false;
+  }
+}
+
 async function handleVoice(text) {
   const q = normalizeText(text);
   const data = getData();
-  const prefix = 'hey flexi';
-  const t = q.startsWith(prefix) ? q.replace(prefix, '').trim() : q;
-  if (t === 'help' || t.includes('commands') || t.includes('what can you do')) {
-    return showOverlay('Voice Commands', commandsHTML());
+  const prefixes = ['hey flexi', 'hey flexy'];
+  const wake = prefixes.find(p => q.startsWith(p));
+  const now = Date.now();
+  const isWoke = !!wake || (window._wakeUntil && now <= window._wakeUntil);
+  if (!isWoke) return;
+  const t = (wake ? q.replace(wake, '').trim() : q);
+  if (wake) window._wakeUntil = now + 4000;
+  if (window._busyCalendar) { if (t.includes('close')) { closeAllPopups(); window._busyCalendar = false; } return; }
+  
+  // Log for debugging
+  console.log('Voice Command:', t);
+
+  if (t === 'help' || t.includes('help') || t.includes('what can you do')) {
+    closeAllPopups();
+    return showHelpPaged(0, null);
+  }
+  if (t.includes('close')) { 
+    closeAllPopups(); 
+    return; 
   }
 
+  // Next Command
+  if (t === 'next' || t.includes('next page') || (t.includes('next') && !t.includes('previous') && !t.includes('back'))) { 
+    try { 
+      const isModalOpen = document.getElementById('modal-overlay').style.display === 'flex';
+      
+      if (isModalOpen) {
+        // If modal is open, ONLY try to page the modal.
+        // If the modal doesn't support paging (advanceModalPage returns false), do nothing or show feedback.
+        if (advanceModalPage(1)) {
+           // Successfully paged
+        } else {
+           // Modal open but no pages (or not a paged modal)
+           return showOverlay('Navigation', '<div>No more pages</div>');
+        }
+      } else {
+        // No modal open, advance background slider
+        advanceEvents(1);
+      }
+    } catch (e) { console.error(e); } 
+    return showOverlay('Navigation', '<div>Next page</div>'); 
+  }
+
+  // Previous Command
+  if (t === 'previous' || t === 'back' || t.includes('previous page') || t.includes('go back') || t.includes('prev')) { 
+    try { 
+      const isModalOpen = document.getElementById('modal-overlay').style.display === 'flex';
+      
+      if (isModalOpen) {
+        if (advanceModalPage(-1)) {
+           // Successfully paged
+        } else {
+           return showOverlay('Navigation', '<div>No previous pages</div>');
+        }
+      } else {
+        advanceEvents(-1);
+      }
+    } catch (e) { console.error(e); } 
+    return showOverlay('Navigation', '<div>Previous page</div>'); 
+  }
+  // Calendar-related commands: debounce to avoid partial triggers
+  if (t.includes('calendar') || hasTagQuery(t) || parseDate(t)) { scheduleCalendarCommand(t); return; }
+  if (t === 'date' || t.includes(' date')) {
+    closeAllPopups();
+    const cfg = await fetchConfig('date');
+    const v = cfg && (cfg.value || cfg.date || cfg.text);
+    const now = new Date();
+    const disp = v || now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    logInfo('voice_command', { command: 'date' });
+    return showModal('Date', `<div>${disp}</div>`);
+  }
+  // Tag commands are handled via debounce above
+
   if (/^(show|open)\s+(office|office information)/.test(t) || t.includes('registrar') || t.includes('clinic') || t.includes('guidance')) {
+    closeAllPopups();
     const off = await fetchConfig('officeInfo') || {};
     const fs = await fetchConfig('facilityStatus') || {};
     const html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
@@ -376,6 +1242,7 @@ async function handleVoice(text) {
   }
 
   if (t.includes('library') || t.includes('canteen') || t.includes('laboratory') || t.includes('facility')) {
+    closeAllPopups();
     const off = await fetchConfig('officeInfo') || {};
     const fs = await fetchConfig('facilityStatus') || {};
     const html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
@@ -390,6 +1257,7 @@ async function handleVoice(text) {
   }
 
   if (t.includes('room')) {
+    closeAllPopups();
     const rooms = await fetchRooms();
     const free = rooms.filter(r => normalizeText(r.status) === 'free').map(r => r.name).slice(0,6);
     const occ = rooms.filter(r => normalizeText(r.status) === 'occupied').map(r => r.name).slice(0,6);
@@ -400,20 +1268,89 @@ async function handleVoice(text) {
   }
 
   if (t.includes('full announcement') || t.includes('show announcements') || t.includes('announcements list') || t.includes('announcement')) {
+    closeAllPopups();
+    showModalNoHeader('<div>Loading Announcements...</div>', 600000); // Instant feedback
     const anns = await fetchAnnouncements(200);
-    const html = anns.map(a => `<div style="padding:6px 8px;"><b>${a.title}</b><div style="color:#4a5568; font-size:0.85rem;">${a.time} • ${a.date}</div></div>`).join('');
-    await logInfo('voice_command', { command: 'announcements' });
-    return showModal('Announcements', html);
+    logInfo('voice_command', { command: 'announcements' });
+    return showAnnouncementsPaged(anns, 0, null);
+  }
+
+  const calRange = parseDate(t);
+  if ((t.includes('schedule') || (t.includes('event') && t.includes('on')) || (t.includes('announcement') && t.includes('on'))) && calRange) {
+    closeAllPopups();
+    showModalNoHeader('<div>Loading...</div>', 600000);
+    const annsAll = await fetchAnnouncements(200);
+    const evsAll = await fetchEvents(200);
+    const textLower = t;
+    let md = null;
+    const m1 = textLower.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})(?!\s*\d{4})/);
+    if (m1) {
+      const monthNames = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+      md = { m: monthNames.indexOf(m1[1]), d: parseInt(m1[2],10), hasYear: false };
+    } else {
+      const m2 = textLower.match(/(\d{1,2})[\/\-](\d{1,2})(?![\/\-]\d{2,4})/);
+      if (m2) md = { m: parseInt(m2[1],10)-1, d: parseInt(m2[2],10), hasYear: false };
+    }
+    if (md && !md.hasYear) {
+      const yearsFrom = (arr) => {
+        return arr.map(x => {
+          const d = new Date(String(x.date || '').replace(/\,/g,''));
+          return { y: d.getFullYear(), m: d.getMonth(), d: d.getDate() };
+        }).filter(p => p.m === md.m && p.d === md.d).map(p => p.y);
+      };
+      const useBoth = t.includes('schedule');
+      const poolYears = useBoth ? yearsFrom(annsAll).concat(yearsFrom(evsAll)) 
+                                : (t.includes('event') ? yearsFrom(evsAll) : yearsFrom(annsAll));
+      if (poolYears.length) {
+        const latestYear = Math.max.apply(null, poolYears);
+        const from = new Date(latestYear, md.m, md.d, 0,0,0,0);
+        const to = new Date(latestYear, md.m, md.d, 23,59,59,999);
+        calRange.from = from; calRange.to = to;
+      }
+    }
+    const inRangeAnn = (a) => {
+      const dstr = (a.date || '').replace(/\,/g,'');
+      const d = new Date(dstr);
+      return d >= calRange.from && d <= calRange.to;
+    };
+    const inRangeEvt = (e) => {
+      const dstr = (e.date || '').replace(/\,/g,'');
+      const d = new Date(dstr);
+      return d >= calRange.from && d <= calRange.to;
+    };
+    const anns = annsAll.filter(inRangeAnn);
+    const evs = evsAll.filter(inRangeEvt);
+    const opts = { year: 'numeric', month: 'short', day: 'numeric' };
+    const titleDate = calRange.from.toLocaleDateString('en-US', opts);
+    if (t.includes('schedule')) {
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${(evs.length?evs:[]).map(e => `<div>${e.title} — ${e.date}</div>`).join('') || '<div>No events</div>'}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
+      logInfo('voice_command', { command: 'calendar_schedule' });
+      return showModal(`Calendar — ${titleDate}`, html);
+    }
+    if (t.includes('event')) {
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${(evs.length?evs:[]).map(e => `<div>${e.title} — ${e.date}</div>`).join('') || '<div>No events</div>'}</div>`;
+      logInfo('voice_command', { command: 'calendar_events_on' });
+      return showModal(`Calendar — ${titleDate}`, html);
+    }
+    if (t.includes('announcement')) {
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
+      logInfo('voice_command', { command: 'calendar_announcements_on' });
+      return showModal(`Calendar — ${titleDate}`, html);
+    }
   }
 
   if (t.includes('teacher') || t.includes('teachers availability') || t.includes('availability')) {
+    closeAllPopups();
+    showModalNoHeader('<div>Loading Teachers...</div>', 600000);
     const tchs = await fetchTeachers(200);
     const html = tchs.map(s => `<div style="padding:6px 8px;"><b>${s.name}</b><div style="color:#4a5568; font-size:0.85rem;">${s.availability}</div></div>`).join('');
-    await logInfo('voice_command', { command: 'teachers' });
+    logInfo('voice_command', { command: 'teachers' });
     return showModal('Teachers Availability', html);
   }
 
   if (t.includes('event')) {
+    closeAllPopups();
+    showModalNoHeader('<div>Loading Events...</div>', 600000);
     const range = parseDate(t);
     const evsAll = await fetchEvents(50);
     let evs = evsAll;
@@ -425,29 +1362,60 @@ async function handleVoice(text) {
       };
       evs = evsAll.filter(inRange);
     }
-    const html = (evs.length ? evs : evsAll).map(e => `<div style="display:flex; gap:10px; padding:8px 0; align-items:center;"><div style="width:80px; height:60px; background-image:url('${e.image}'); background-size:cover; background-position:center; border-radius:6px;"></div><div><div style="font-weight:bold;">${e.title}</div><div style="color:#4a5568; font-size:0.85rem;">${e.date}</div></div></div>`).join('');
-    await logInfo('voice_command', { command: 'events' });
-    return showModal('Upcoming Events', html);
+    logInfo('voice_command', { command: 'events' });
+    const list = (evs.length ? evs : evsAll);
+    return showEventsPaged(list, 0, null);
   }
 
-  if (t.includes('calendar')) {
-    const anns = await fetchAnnouncements(200);
-    const evs = await fetchEvents(200);
-    const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${evs.map(e => `<div>${e.title} — ${e.date}</div>`).join('')}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${anns.map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('')}</div>`;
-    await logInfo('voice_command', { command: 'calendar' });
-    return showModal('Calendar & Highlights', html);
+  // Calendar base is handled via debounce above
+  if (t.includes('highlight')) {
+    closeAllPopups();
+    showModalNoHeader('<div>Loading Highlights...</div>', 600000);
+    const hls = (await fetchHighlights(8)).slice(0, 8);
+    const html = `
+      <div style="display:flex; flex-direction:column; height:100%;">
+        <div style="display:grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); gap: 12px; flex:1 1 auto;">
+          ${hls.map(h => `
+            <div style="padding: 0; display:flex; align-items:center; justify-content:center; background: transparent;">
+              <div style="width:100%; height:100%; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    logInfo('voice_command', { command: 'highlights' });
+    return showModalAuto('HIGHLIGHTS', html || '<div>No highlights available</div>', 5000);
   }
 
   if (t.includes('qr')) {
-    return showOverlay('Voice Commands', commandsHTML());
+    closeAllPopups();
+    return showModalAuto('HELP', helpHTML(), 600000);
   }
 
-  return showOverlay('Voice Commands', commandsHTML());
+  // Fallback: Do NOT show help by default to avoid confusion
+  // return showModalAuto('HELP', helpHTML(), 600000);
+  return;
+}
+function advanceEvents(step = 1) {
+  const cards = Array.from(document.querySelectorAll('#events-list .event-card'));
+  if (!cards.length) return;
+  let idx = cards.findIndex(c => c.classList.contains('active'));
+  if (idx < 0) idx = 0;
+  cards.forEach(c => c.classList.remove('active'));
+  idx = (idx + step + cards.length) % cards.length;
+  cards[idx].classList.add('active');
+  const dots = Array.from(document.querySelectorAll('.section-activities .dots-wrap .dot'));
+  if (dots.length) {
+    dots.forEach(d => d.classList.remove('active'));
+    dots[idx % dots.length].classList.add('active');
+  }
 }
 // --- Dashboard Render Logic ---
 async function renderDashboard() {
   const data = getData();
   const db = getFirestoreDB();
+
+  // 1. Announcements
   const annContainer = document.getElementById('announcements-list');
   if (annContainer && db) {
     try {
@@ -456,149 +1424,283 @@ async function renderDashboard() {
         const parseAnn = (a) => {
           const dstr = (a.date || '').replace(/\,/g,'');
           const dt = new Date(dstr + ' ' + (a.time || ''));
-          return { ...a, _ts: dt.getTime() || 0 };
+          return { ...a, _ts: dt.getTime() || 0, pinned: !!a.pinned };
         };
-        const anns = annsRaw.map(parseAnn).sort((x,y) => x._ts - y._ts).slice(0, 2);
+        const anns = annsRaw.map(parseAnn)
+          .sort((x,y) => (y.pinned - x.pinned) || (x._ts - y._ts))
+          .slice(0, 50); 
         annContainer.innerHTML = anns.map(a => `
-          <div class="list-item" style="padding:6px 8px; gap:4px;">
-            <h3 style="font-size:0.95rem;">${a.title}</h3>
-            <p style="font-size:0.85rem; color:#4a5568;">${a.time} • ${a.date}</p>
+          <div class="announcement-item">
+            <div class="icon">${a.icon || '📢'}</div>
+            <div class="text">
+              <h3>${a.title}</h3>
+              ${a.description ? `<p>${a.description}</p>` : ''}
+            </div>
           </div>
         `).join('');
-      }, (err) => {
-        const msg = `Firestore error: ${err && (err.code || err.message) || 'unknown'}`;
-        annContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">${msg}</div>`;
-        updateDbIndicator(msg, false);
-        try { console.error('Announcements snapshot error', err); } catch {}
       });
     } catch {}
-  } else if (annContainer) {
-    annContainer.innerHTML = '<div class="list-item" style="padding:6px 8px;">Connect to Firestore to load announcements.</div>';
   }
 
-  // Render Upcoming Events
-  const eventsContainer = document.getElementById('events-list');
-  if (eventsContainer && db) {
-    try {
-      db.collection('events').orderBy('createdAt','desc').limit(50).onSnapshot((snap) => {
-        const evsAll = snap.docs.map(d => d.data());
-        const parseEv = (e) => {
-          const dstr = (e.date || '').replace(/\,/g,'');
-          const dt = new Date(dstr);
-          return { ...e, _ts: dt.getTime() || 0 };
+  // 2. Calendar Widget (Month View with Dots)
+  const calContainer = document.getElementById('calendar-container');
+  if (calContainer && db) {
+     let _calEvents = [];
+     let _calAnns = [];
+     
+     const renderCal = () => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth(); 
+        
+        const monthNames = ["January", "February", "March", "April", "May", "June",
+          "July", "August", "September", "October", "November", "December"
+        ];
+        
+        const firstDay = new Date(year, month, 1).getDay(); // 0 = Sunday
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        const getCellClass = (day) => {
+           const checkDate = (dstr) => {
+              if(!dstr) return false;
+              const d = new Date(dstr.replace(/\,/g,''));
+              return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+           };
+           
+           let hasEvent = _calEvents.some(e => checkDate(e.date));
+           let hasAnn = _calAnns.some(a => checkDate(a.date));
+           
+           if(hasEvent && hasAnn) return 'cell-both';
+           if(hasEvent) return 'cell-event';
+           if(hasAnn) return 'cell-announcement';
+           return '';
         };
-        const evs = evsAll.map(parseEv).sort((x,y) => x._ts - y._ts);
-        eventsContainer.innerHTML = `
-          <div id="events-slide" style="width:100%; height:100%; border-radius:8px; background-size:cover; background-position:center; display:flex; align-items:flex-end;">
-            <div id="events-slide-caption" style="width:100%; background:rgba(0,0,0,0.45); color:#fff; padding:8px 10px; border-radius:0 0 8px 8px; font-weight:bold;"></div>
+
+        let gridHtml = '';
+        const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+        days.forEach(d => gridHtml += `<div class="cal-day-header">${d}</div>`);
+        
+        for(let i=0; i<firstDay; i++) {
+           gridHtml += `<div class="cal-cell empty"></div>`;
+        }
+        
+        for(let i=1; i<=daysInMonth; i++) {
+           gridHtml += `
+             <div class="cal-cell ${getCellClass(i)}">
+               <div class="cal-date-num">${i}</div>
+             </div>
+           `;
+        }
+        
+        calContainer.innerHTML = `
+          <div class="cal-inner-container">
+            <div class="cal-header-row">
+               <div class="legend-item left"><div class="legend-dot dot-event"></div> Event</div>
+               <div class="cal-month-name">${monthNames[month]} ${year}</div>
+               <div class="legend-item right"><div class="legend-dot dot-announcement"></div> Announcement</div>
+            </div>
+            <div class="cal-grid">
+               ${gridHtml}
+            </div>
           </div>
         `;
+     };
+
+     db.collection('events').onSnapshot(snap => {
+        _calEvents = snap.docs.map(d => d.data());
+        renderCal();
+     });
+     db.collection('announcements').onSnapshot(snap => {
+        _calAnns = snap.docs.map(d => d.data());
+        renderCal();
+     });
+     
+     renderCal();
+  }
+
+  // 3. Upcoming Events (Slider)
+  const eventsContainer = document.getElementById('events-list');
+  if (eventsContainer && db) {
+    db.collection('events').orderBy('createdAt','desc').limit(10).onSnapshot(snap => {
+       const evs = snap.docs.map(d => d.data());
+       if(evs.length === 0) {
+         eventsContainer.innerHTML = '';
+         return;
+       }
+       eventsContainer.innerHTML = evs.map((e, i) => `
+         <div class="event-card ${i===0 ? 'active' : ''}" style="background-image: url('${e.image}');">
+            <div class="event-overlay">
+               <h3 class="event-title">${e.title}</h3>
+               <div class="event-sub">${e.date}</div>
+            </div>
+         </div>
+       `).join('');
+
+       const dotsWrap = eventsContainer.parentElement.querySelector('.dots-wrap');
+       if (dotsWrap) {
+         dotsWrap.innerHTML = evs.map((_, i) => `<span class="dot ${i===0?'active':''}" style="width:8px;height:8px;border-radius:50%;background:#000;opacity:${i===0?1:0.4};"></span>`).join('');
+       }
+       
+       // Slider Logic
+       clearInterval(window._eventsInterval);
+       let idx = 0;
+       const cards = eventsContainer.querySelectorAll('.event-card');
+       if(cards.length > 1) {
+         window._eventsInterval = setInterval(() => {
+           cards.forEach(c => c.classList.remove('active'));
+           idx = (idx + 1) % cards.length;
+           cards[idx].classList.add('active');
+           const dots = eventsContainer.parentElement.querySelectorAll('.dot');
+           if(dots.length) dots.forEach((d, i) => {
+             d.classList.toggle('active', i === idx);
+             d.style.opacity = (i === idx) ? '1' : '0.4';
+           });
+         }, 5000);
+       }
+    });
+  }
+
+  // 4. Highlights (Slider)
+  const highContainer = document.getElementById('highlights-container');
+  if (highContainer && db) {
+     db.collection('highlights').orderBy('createdAt','desc').limit(10).onSnapshot(snap => {
+        const hls = snap.docs.map(d => d.data());
+        if(hls.length === 0) {
+            highContainer.innerHTML = '';
+            return;
+        }
+        
+        // Render structure for new CSS
+        highContainer.innerHTML = `
+          <div class="image-slide"></div>
+          <div class="dots-wrap" style="margin-top:auto; padding-bottom:4px;"></div>
+        `;
+        
+        const slideEl = highContainer.querySelector('.image-slide');
+        const dotsEl = highContainer.querySelector('.dots-wrap');
+        
         let idx = 0;
         const setSlide = () => {
-          if (evs.length === 0) return;
-          const cur = evs[idx % evs.length];
-          const el = document.getElementById('events-slide');
-          const cap = document.getElementById('events-slide-caption');
-          if (el && cap) {
-            el.style.backgroundImage = `url('${cur.image}')`;
-            cap.textContent = `${cur.title} — ${cur.date}`;
-          }
-          idx++;
+           const cur = hls[idx % hls.length];
+           // Create a new box-frame for transition effect if desired, or just set bg
+           // The CSS implies .image-slide has bg image, or .box-frame inside it
+           // Let's use simple bg image on image-slide as per CSS transition
+           slideEl.style.backgroundImage = `url('${cur.image}')`;
+           
+           if(dotsEl) {
+             const activeIdx = idx % hls.length;
+             dotsEl.innerHTML = hls.map((_, i) => `<span class="dot ${i===activeIdx?'active':''}" style="width:8px;height:8px;border-radius:50%;background:#000;opacity:${i===activeIdx?1:0.4};"></span>`).join('');
+           }
+           idx++;
         };
         setSlide();
-        clearInterval(window._eventsSlideTimer);
-        window._eventsSlideTimer = setInterval(setSlide, 5000);
-      }, (err) => {
-        const msg = `Firestore error: ${err && (err.code || err.message) || 'unknown'}`;
-        eventsContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">${msg}</div>`;
-        updateDbIndicator(msg, false);
-        try { console.error('Events snapshot error', err); } catch {}
-      });
-    } catch {}
-  } else if (eventsContainer) {
-    eventsContainer.innerHTML = '<div class="list-item" style="padding:6px 8px;">Connect to Firestore to load events.</div>';
+        clearInterval(window._highInterval);
+        window._highInterval = setInterval(setSlide, 5000);
+     });
   }
 
-  // Render Schedule
-  const scheduleContainer = document.getElementById('schedule-list');
-  if (scheduleContainer && db) {
-    try {
-      db.collection('teachers').orderBy('createdAt','desc').limit(50).onSnapshot((snap) => {
-        const tchs = snap.docs.map(d => d.data()).slice(0,3);
-        scheduleContainer.innerHTML = tchs.map(s => `
-          <div class="list-item" style="padding:6px 8px; gap:4px;">
-            <h3 style="font-size:0.95rem;">${s.name}</h3>
-            <p style="font-size:0.85rem; color:#4a5568;">${s.availability}</p>
-          </div>
-        `).join('');
-      }, (err) => {
-        const msg = `Firestore error: ${err && (err.code || err.message) || 'unknown'}`;
-        scheduleContainer.innerHTML = `<div class="list-item" style="padding:6px 8px;">${msg}</div>`;
-        updateDbIndicator(msg, false);
-        try { console.error('Teachers snapshot error', err); } catch {}
-      });
-    } catch {}
-  } else if (scheduleContainer) {
-    scheduleContainer.innerHTML = '<div class="list-item" style="padding:6px 8px;">Connect to Firestore to load teachers availability.</div>';
+  // 5. Facility Status (3x2 Grid)
+  const facContainer = document.getElementById('facility-list');
+  if (facContainer) {
+     const getStatus = (val) => {
+        if(!val) return { text: 'CLOSED', class: 'status-closed' };
+        const v = String(val).toLowerCase();
+        if(v.includes('break')) return { text: 'ON BREAK', class: 'status-break-fac' };
+        if(v.includes('open')) return { text: 'OPEN', class: 'status-open' };
+        return { text: 'CLOSED', class: 'status-closed' };
+     };
+     const renderFacilities = (fs) => {
+       const items = [
+         { name: 'Clinic', val: fs.clinic },
+         { name: 'Library', val: fs.library },
+         { name: 'Admin', val: fs.admin },
+         { name: 'Registrar', val: fs.registrar },
+         { name: 'Proware', val: fs.proware },
+         { name: 'D.O', val: fs.do }
+       ];
+       facContainer.innerHTML = `
+         <div class="facility-grid">
+           ${items.map(item => {
+             const st = getStatus(item.val);
+             return `
+             <div class="facility-item">
+               <span class="facility-name">${item.name}</span>
+               <span class="facility-status ${st.class}">${st.text}</span>
+             </div>
+             `;
+           }).join('')}
+         </div>
+       `;
+     };
+     if (db) {
+       try {
+         db.collection('config').doc('facilityStatus').onSnapshot(snap => {
+           const fs = snap.exists ? (snap.data() || {}) : {};
+           renderFacilities(fs);
+         });
+       } catch {
+         const fs = await fetchConfig('facilityStatus') || {};
+         renderFacilities(fs);
+       }
+     }
   }
 
-  // Faculty status removed from dashboard; accessible via voice only
-
-  // Render Media/Highlight
-  const mediaContainer = document.getElementById('media-content');
-  if (mediaContainer) {
-    const annsAll = await fetchAnnouncements(50).catch(() => []);
-    const evsAll = await fetchEvents(50).catch(() => []);
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth()+1, 0);
-    const parseDay = (s) => {
-      const dstr = (s || '').replace(/\,/g,'');
-      const d = new Date(dstr);
-      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    };
-    const totalDays = monthEnd.getDate();
-    const evDays = evsAll.map(e => parseDay(e.date)).filter(d => d.getMonth() === now.getMonth());
-    const annDays = annsAll.map(a => parseDay(a.date)).filter(d => d.getMonth() === now.getMonth());
-    const firstDay = monthStart.getDay();
-    const grid = [];
-    for (let i=0;i<firstDay;i++) grid.push('');
-    for (let i=1;i<=totalDays;i++) grid.push(i);
-    const rows = Math.ceil(grid.length / 7);
-    const gap = 4;
-    mediaContainer.innerHTML = `
-      <div style="display:grid; grid-template-rows: minmax(0,1fr) auto; height:100%; min-height:0;">
-        <div style="display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); grid-template-rows: repeat(${rows}, minmax(0,1fr)); gap:${gap}px; min-height:0; width:100%; box-sizing:border-box;">
-          ${grid.map(d => {
-            if (d==='') return `<div style="background:#f7fafc; border-radius:6px;"></div>`;
-            const hasE = evDays.some(x => x.getDate() === d);
-            const hasA = annDays.some(x => x.getDate() === d);
-            const both = hasE && hasA;
-            const bgColor = hasE ? '#c6f6d5' : hasA ? '#bee3f8' : '#edf2f7';
-            const bgStyle = both ? 'background-image:linear-gradient(to right, #c6f6d5 50%, #bee3f8 50%);' : `background:${bgColor};`;
-            return `<div style="border-radius:6px; ${bgStyle} display:flex; align-items:center; justify-content:center; font-weight:bold; color:#2d3748;">${d}</div>`;
-          }).join('')}
-        </div>
-        <div style="margin-top:6px; font-size:0.8rem; color:#4a5568;"><span style="color:#2f855a; font-weight:600;">Events</span> • <span style="color:#2b6cb0; font-weight:600;">Announcements</span></div>
-      </div>
-    `;
-  }
-
-  // Render Ticker
+  // 6. Ticker
   const tickerEl = document.getElementById('ticker-text');
   if (tickerEl) {
     const t = await fetchConfig('ticker');
-    tickerEl.textContent = (t && t.text) || '';
+    tickerEl.textContent = (t && t.text) || 'Say hey flexi help to see the voice commands';
   }
 }
 
 // --- Admin Render Logic ---
+function renderAdminAnnouncementsList(list) {
+  return list.map(a => `
+    <div class="announcement-item-admin">
+       <div class="icon">${a.icon || '📢'}</div>
+       <div class="text">
+          <h3>${a.title}</h3>
+          ${a.description ? `<p>${a.description}</p>` : ''}
+          <p style="font-size:0.9rem; color:#334155;">${a.time} • ${a.date}</p>
+       </div>
+       <div class="admin-actions">
+         <button class="btn-action ${a.pinned ? 'pinned' : ''}" data-action="pin" data-id="${a.id}" data-pinned="${!!a.pinned}">${a.pinned ? 'Unpin' : 'Pin'}</button>
+         <button class="btn-save" data-action="del" data-id="${a.id}">Delete</button>
+       </div>
+    </div>
+  `).join('');
+}
+
+function renderAdminEventsList(list) {
+  return list.map(e => `
+    <div class="event-item-admin">
+       <img src="${e.image}" class="event-img" alt="${e.title}">
+       <div class="event-info">
+         <h3>${e.title}</h3>
+         <p>${e.date}</p>
+       </div>
+       <button class="btn-delete" data-action="delete" data-id="${e.id}">Delete</button>
+    </div>
+  `).join('');
+}
+
 async function renderAdmin() {
-  const data = getData();
+  // Use Firebase configs instead of local storage
   const tickerInput = document.getElementById('ticker-input');
-  if (tickerInput) tickerInput.value = data.ticker;
+  if (tickerInput) {
+    const t = await fetchConfig('ticker');
+    tickerInput.value = (t && t.text) || '';
+    const prevEl = document.getElementById('ticker-preview-text');
+    if (prevEl) prevEl.textContent = tickerInput.value || 'Say hey flexi help to see the voice commands';
+    tickerInput.addEventListener('input', () => {
+      const p = document.getElementById('ticker-preview-text');
+      if (p) p.textContent = tickerInput.value || '';
+    });
+  }
+
+  // Legacy inputs - keep disabled or remove if not in HTML
   const annInput = document.getElementById('announcements-input');
-  if (annInput) annInput.value = JSON.stringify(data.announcements, null, 2);
+  if (annInput) annInput.disabled = true;
   const eventsInput = document.getElementById('events-input');
   if (eventsInput) eventsInput.disabled = true;
   const scheduleInput = document.getElementById('schedule-input');
@@ -607,26 +1709,29 @@ async function renderAdmin() {
   const mediaValue = document.getElementById('media-value');
   if (mediaType) mediaType.disabled = true;
   if (mediaValue) mediaValue.disabled = true;
-  const registrarHours = document.getElementById('registrar-hours');
+
+  // Facility Status
   const clinicStatus = document.getElementById('clinic-status');
-  const guidanceAvailability = document.getElementById('guidance-availability');
-  const offCfg = await fetchConfig('officeInfo');
-  if (registrarHours) registrarHours.value = (offCfg && offCfg.registrarHours) || '';
-  if (clinicStatus) clinicStatus.value = (offCfg && offCfg.clinicStatus) || '';
-  if (guidanceAvailability) guidanceAvailability.value = (offCfg && offCfg.guidanceAvailability) || '';
   const libraryStatus = document.getElementById('library-status');
-  const canteenStatus = document.getElementById('canteen-status');
-  const laboratoryStatus = document.getElementById('laboratory-status');
+  const adminStatus = document.getElementById('admin-status');
+  const registrarStatus = document.getElementById('registrar-status');
+  const prowareStatus = document.getElementById('proware-status');
+  const doStatus = document.getElementById('do-status');
+
   const fsCfg = await fetchConfig('facilityStatus');
-  if (libraryStatus) libraryStatus.value = (fsCfg && fsCfg.library) || '';
-  if (canteenStatus) canteenStatus.value = (fsCfg && fsCfg.canteen) || '';
-  if (laboratoryStatus) laboratoryStatus.value = (fsCfg && fsCfg.laboratory) || '';
+  if (clinicStatus) clinicStatus.value = (fsCfg && fsCfg.clinic) || 'Open';
+  if (libraryStatus) libraryStatus.value = (fsCfg && fsCfg.library) || 'Open';
+  if (adminStatus) adminStatus.value = (fsCfg && fsCfg.admin) || 'Open';
+  if (registrarStatus) registrarStatus.value = (fsCfg && fsCfg.registrar) || 'Open';
+  if (prowareStatus) prowareStatus.value = (fsCfg && fsCfg.proware) || 'Open';
+  if (doStatus) doStatus.value = (fsCfg && fsCfg.do) || 'Open';
+
+
+  // Lists
   const eventsAdmin = document.getElementById('events-admin-list');
   if (eventsAdmin) {
     const evsAll = await fetchEvents(50);
-    eventsAdmin.innerHTML = evsAll.map(e => `
-      <div class="list-item"><h3>${e.title}</h3><p>${e.date}</p></div>
-    `).join('');
+    eventsAdmin.innerHTML = renderAdminEventsList(evsAll);
   }
   const teachersAdmin = document.getElementById('teachers-admin-list');
   if (teachersAdmin) {
@@ -634,6 +1739,21 @@ async function renderAdmin() {
     teachersAdmin.innerHTML = tchsAll.map(s => `
       <div class="list-item"><h3>${s.name}</h3><p>${s.availability}</p></div>
     `).join('');
+  }
+  const scheduleAdmin = document.getElementById('schedule-admin-list');
+  if (scheduleAdmin) {
+    // Implement schedule fetching if needed, or remove if not used
+    // Assuming schedule fetching is similar to others but we don't have fetchSchedule function yet?
+    // Wait, renderDashboard uses db.collection('schedules')
+    // Let's add fetchSchedules if not exists or use direct db call
+    const db = getFirestoreDB();
+    if(db) {
+       const snap = await db.collection('schedules').orderBy('createdAt','desc').limit(20).get();
+       const schs = snap.docs.map(d => d.data());
+       scheduleAdmin.innerHTML = schs.map(s => `
+         <div class="list-item"><h3>${s.title}</h3><p>${s.time} (${s.start}-${s.end})</p></div>
+       `).join('');
+    }
   }
   const roomsAdmin = document.getElementById('rooms-admin-list');
   if (roomsAdmin) {
@@ -645,9 +1765,33 @@ async function renderAdmin() {
   const adminList = document.getElementById('announcements-admin-list');
   if (adminList) {
     const allAnns = await fetchAnnouncements(50);
-    adminList.innerHTML = allAnns.map(a => `
-      <div class="list-item"><h3>${a.title}</h3><p>${a.time} • ${a.date}</p></div>
-    `).join('');
+    adminList.innerHTML = renderAdminAnnouncementsList(allAnns);
+  }
+  
+  // Highlights/Media
+  const mediaAdmin = document.getElementById('media-admin-list');
+  if (mediaAdmin) {
+      const hls = await fetchHighlights(50);
+      mediaAdmin.innerHTML = hls.map(h => `
+        <div class="list-item">
+          <div style="width:60px; height:40px; background-image:url('${h.image}'); background-size:cover; border-radius:4px;"></div>
+        </div>
+      `).join('');
+  }
+
+  const highlightsGrid = document.getElementById('highlights-admin-list');
+  if (highlightsGrid) {
+      const hls = await fetchHighlights(50);
+      const cnt = (hls || []).length;
+      highlightsGrid.innerHTML = (hls || []).map(h => `
+        <div class="list-item">
+           <div style="width:100%; height:160px; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
+           <div style="display:flex; gap:8px; margin-top:6px; justify-content:center;">
+             <button class="btn-save" data-action="replace" data-id="${h.id}">Replace</button>
+             <button class="btn-save" style="background:#dc3545; ${cnt>8 ? '' : 'display:none;'}" data-action="delete" data-id="${h.id}">Delete</button>
+           </div>
+        </div>
+      `).join('');
   }
 }
 
@@ -667,14 +1811,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     let backoff = 600;
     let listening = false;
     let sessionDeadline = 0;
-    const mic = document.getElementById('voice-mic');
+    let permissionStatus = 'unknown';
+    let micStream = null;
     let voiceBuf = '';
     let voiceTimer = null;
+    let lastCmdTs = 0;
     const startListening = async () => {
-      if (!mic) return;
       if (!SR) {
         showOverlay('Voice Not Supported', '<div>Your browser does not support voice recognition.</div>' + commandsHTML());
         return;
+      }
+      if (!micStream && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } });
+          permissionStatus = 'granted';
+          // Ensure tracks are kept alive
+          micStream.getAudioTracks().forEach(track => {
+              track.onended = () => { console.log('Audio track ended'); micStream = null; };
+          });
+        } catch (e) {
+          permissionStatus = 'denied';
+          console.warn('Microphone access blocked', e);
+          showModal('MICROPHONE PERMISSION', '<div>Please allow microphone access to use voice commands.</div>');
+          listening = false;
+          return;
+        }
       }
       if (!recog) {
         recog = new SR();
@@ -683,46 +1844,111 @@ document.addEventListener('DOMContentLoaded', async () => {
         recog.interimResults = true;
         recog.maxAlternatives = 1;
         recog.onresult = async (e) => {
+          let interimTranscript = '';
           for (let i = e.resultIndex; i < e.results.length; i++) {
-            const tx = e.results[i][0].transcript;
-            voiceBuf += (tx + ' ');
+            const transcript = e.results[i][0].transcript;
+            if (e.results[i].isFinal) {
+              voiceBuf += transcript + ' ';
+            } else {
+              interimTranscript += transcript;
+            }
           }
-          const normBuf = normalizeText(voiceBuf);
-          if (normBuf.includes('hey flexi')) {
-            const hasCmd = ['announcement','events','teachers','availability','faculty','calendar','highlights','commands','help']
-              .some(k => normBuf.includes(k));
-            clearTimeout(voiceTimer);
-            voiceTimer = setTimeout(async () => {
-              await handleVoice(voiceBuf);
-              voiceBuf = '';
-              try { recog.stop(); } catch {}
-              listening = false;
-            }, hasCmd ? 300 : 1200);
+          
+          const fullInput = normalizeText(voiceBuf + interimTranscript);
+          const wakeWordIndex = fullInput.lastIndexOf('hey flexi');
+
+          if (wakeWordIndex !== -1) {
+            const commandPart = fullInput.substring(wakeWordIndex + 9).trim(); // 9 = len of 'hey flexi'
+            
+            // Check if we have a valid command
+            const commands = ['announcement','announcements','event','events','teacher','teachers','availability','faculty','calendar','highlight','highlights','commands','command','help','next','previous','prev','back','close','show','open','schedule','today','tomorrow','week','month','date'];
+            let hasCmd = commands.some(k => commandPart.includes(k));
+            // Also treat a recognized date phrase as a command (e.g., "hey flexi what is the schedule on jan 3")
+            if (!hasCmd) {
+              try { hasCmd = !!parseDate(commandPart) || hasTagQuery(commandPart); } catch {}
+            }
+            
+            if (hasCmd) {
+               // Execute immediately without debouncing to avoid timer resets during rapid onresult bursts
+               if (Date.now() - lastCmdTs < 1000 && window._lastCmdStr === commandPart) {
+                   voiceBuf = ''; 
+                   return;
+               }
+               lastCmdTs = Date.now();
+               window._lastCmdStr = commandPart;
+               const cmdToProcess = 'hey flexi ' + commandPart;
+               voiceBuf = ''; 
+               try {
+                 await handleVoice(cmdToProcess);
+               } catch (err) {
+                 console.error('Voice command error:', err);
+               }
+            } else {
+               clearTimeout(voiceTimer);
+               // Wake word detected but no command yet. 
+               // Do NOT clear buffer. Allow user to finish sentence.
+               // Set a long timeout to reset if they never say a command
+               voiceTimer = setTimeout(() => {
+                  voiceBuf = ''; // Reset if silence for too long
+               }, 5000);
+            }
+          } else {
+             const kw = ['commands','announcement','announcements','event','events','calendar','date','day','year','month','next','previous','prev','back','close','show'];
+             kw.push('highlight','highlights');
+             const hasKw = kw.some(k => fullInput.split(/\s+/).includes(k) || fullInput.includes('the next') || fullInput.includes('the previous')) || hasTagQuery(fullInput);
+             if (hasKw) {
+               if (Date.now() - lastCmdTs < 1000 && window._lastCmdStr === fullInput) {
+                 voiceBuf = '';
+                 return;
+               }
+               lastCmdTs = Date.now();
+               window._lastCmdStr = fullInput;
+               const cmdToProcess = fullInput;
+               voiceBuf = '';
+               try {
+                 await handleVoice(cmdToProcess);
+               } catch (err) {
+                 console.error('Voice command error:', err);
+               }
+               return;
+             }
+             if (voiceBuf.length > 200) voiceBuf = voiceBuf.slice(-100);
           }
         };
         recog.onend = () => {
-          if (listening && Date.now() < sessionDeadline) {
-            setTimeout(() => { try { recog.start(); } catch {} }, 400);
-          } else {
-            listening = false;
+          // If we have permission, restart immediately. 
+          // Browser speech engines often disconnect after silence or short bursts.
+          if (listening && permissionStatus === 'granted') {
+             // Reset internal state to avoid stuck buffers
+             voiceBuf = ''; 
+             setTimeout(() => { 
+                try { recog.start(); } catch (err) { console.log('Resume error', err); } 
+             }, 200); // Shorter restart delay
           }
         };
-        recog.onerror = () => { showOverlay('Voice Control', '<div>Microphone error. Please check browser permissions.</div>'); };
-      }
-      try {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          await navigator.mediaDevices.getUserMedia({ audio: true });
-        }
-      } catch (e) {
-        showOverlay('Microphone Blocked', '<div>Please allow microphone access in browser settings, then click the mic again.</div>' + commandsHTML());
+        recog.onerror = (e) => { 
+          console.warn('SpeechRecognition error', e);
+          if (String(e && e.error || '').toLowerCase().includes('not-allowed')) {
+            permissionStatus = 'denied';
+            listening = false;
+          } else if (e.error === 'no-speech' || e.error === 'network') {
+             // Common transient errors, ignore and let onend restart
+          }
+        };
       }
       listening = true;
       backoff = 600;
-      sessionDeadline = Date.now() + 15000;
+      sessionDeadline = Date.now() + (24 * 60 * 60 * 1000);
       voiceBuf = '';
-      try { recog.start(); showOverlay('Voice Commands', commandsHTML() + '<div style="margin-top:8px; color:#2d3748;">Listening… say “Hey Flexi …”</div>'); await logInfo('voice_start', {}); } catch {}
+      try { recog.start(); await logInfo('voice_start', {}); } catch {}
     };
-    if (mic) mic.addEventListener('click', startListening);
+    try { await startListening(); } catch {}
+    setInterval(() => {
+      if (!listening && SR && recog && permissionStatus === 'granted') {
+        listening = true;
+        try { recog.start(); } catch {}
+      }
+    }, 5000);
 
     const mclose = document.getElementById('modal-close');
     if (mclose) mclose.addEventListener('click', hideModal);
@@ -732,13 +1958,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const calHead = document.getElementById('calendar-header');
     if (annHead) annHead.addEventListener('click', async () => {
       const anns = await fetchAnnouncements(200);
-      const html = anns.map(a => `<div style="padding:6px 8px;"><b>${a.title}</b><div style="color:#4a5568; font-size:0.85rem;">${a.time} • ${a.date}</div></div>`).join('');
-      showModal('Announcements', html);
+      showAnnouncementsPaged(anns, 0, null);
     });
     if (eventsHead) eventsHead.addEventListener('click', async () => {
       const evs = await fetchEvents(200);
-      const html = evs.map(e => `<div style="display:flex; gap:10px; padding:8px 0; align-items:center;"><div style="width:80px; height:60px; background-image:url('${e.image}'); background-size:cover; background-position:center; border-radius:6px;"></div><div><div style="font-weight:bold;">${e.title}</div><div style="color:#4a5568; font-size:0.85rem;">${e.date}</div></div></div>`).join('');
-      showModal('Upcoming Events', html);
+      showEventsPaged(evs, 0, null);
     });
     if (teachersHead) teachersHead.addEventListener('click', async () => {
       const tchs = await fetchTeachers(200);
@@ -755,28 +1979,66 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   if (document.getElementById('admin-view')) {
     renderAdmin();
+
+    // Announcements
     const annAddBtn = document.getElementById('ann-add-btn');
     if (annAddBtn) annAddBtn.addEventListener('click', async () => {
       const title = document.getElementById('ann-title').value.trim();
+      const desc = (document.getElementById('ann-desc') && document.getElementById('ann-desc').value.trim()) || '';
       const date = document.getElementById('ann-date').value.trim();
       const time = document.getElementById('ann-time').value.trim();
+      const icon = document.getElementById('ann-icon').value;
       if (!title || !date || !time) return;
-      await addAnnouncement(title, date, time);
+      
+      const db = getFirestoreDB();
+      const doc = { title, description: desc, date, time, icon, createdAt: new Date().toISOString(), pinned: false };
+      if (db) {
+        try { await db.collection('announcements').add(doc); } catch {}
+      }
+      await logInfo('announcement_add', { title, date, time });
+
       if (document.getElementById('announcements-admin-list')) {
         const allAnns = await fetchAnnouncements(50);
-        document.getElementById('announcements-admin-list').innerHTML = allAnns.map(a => `
-          <div class="list-item"><h3>${a.title}</h3><p>${a.time} • ${a.date}</p></div>
-        `).join('');
+        document.getElementById('announcements-admin-list').innerHTML = renderAdminAnnouncementsList(allAnns);
       }
       document.getElementById('ann-title').value = '';
+      if(document.getElementById('ann-desc')) document.getElementById('ann-desc').value = '';
       document.getElementById('ann-date').value = '';
       document.getElementById('ann-time').value = '';
     });
+    
+    const annSaveBtn = document.getElementById('ann-save-btn');
+    if (annSaveBtn) annSaveBtn.addEventListener('click', async () => {
+       const allAnns = await fetchAnnouncements(50);
+       const container = document.getElementById('announcements-admin-list');
+       if(container) container.innerHTML = renderAdminAnnouncementsList(allAnns);
+       alert('Changes saved/synced with database.');
+    });
+    
+    // Admin announcement actions (pin/delete)
+    const adminList = document.getElementById('announcements-admin-list');
+    if (adminList) {
+      adminList.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        const act = btn.dataset.action;
+        const isPinned = btn.dataset.pinned === 'true';
+        if (!id || !act) return;
+        if (act === 'del') await deleteAnnouncement(id);
+        if (act === 'pin') await pinAnnouncement(id, !isPinned);
+        
+        const allAnns = await fetchAnnouncements(50);
+        adminList.innerHTML = renderAdminAnnouncementsList(allAnns);
+      });
+    }
+
+    // Events
     const eventAddBtn = document.getElementById('event-add-btn');
     if (eventAddBtn) eventAddBtn.addEventListener('click', async () => {
       const title = document.getElementById('event-title').value.trim();
       const date = document.getElementById('event-date').value.trim();
-      const fileEl = document.getElementById('event-image-file');
+      const fileEl = document.getElementById('event-img-upload');
       const file = fileEl && fileEl.files && fileEl.files[0];
       if (!title || !date || !file) return;
       const url = await compressImageToDataURL(file);
@@ -784,29 +2046,139 @@ document.addEventListener('DOMContentLoaded', async () => {
       await addEvent(title, date, url);
       if (document.getElementById('events-admin-list')) {
         const evsAll = await fetchEvents(50);
-        document.getElementById('events-admin-list').innerHTML = evsAll.map(e => `
-          <div class="list-item"><h3>${e.title}</h3><p>${e.date}</p></div>
-        `).join('');
+        document.getElementById('events-admin-list').innerHTML = renderAdminEventsList(evsAll);
       }
       document.getElementById('event-title').value = '';
       document.getElementById('event-date').value = '';
       if (fileEl) fileEl.value = '';
     });
-    const teacherAddBtn = document.getElementById('teacher-add-btn');
-    if (teacherAddBtn) teacherAddBtn.addEventListener('click', async () => {
-      const name = document.getElementById('teacher-name').value.trim();
-      const availability = document.getElementById('teacher-availability').value.trim();
-      if (!name || !availability) return;
-      await addTeacher(name, availability);
-      if (document.getElementById('teachers-admin-list')) {
-        const tchsAll = await fetchTeachers(50);
-        document.getElementById('teachers-admin-list').innerHTML = tchsAll.map(s => `
-          <div class="list-item"><h3>${s.name}</h3><p>${s.availability}</p></div>
+
+    const eventsSaveBtn = document.getElementById('events-save-btn');
+    if (eventsSaveBtn) eventsSaveBtn.addEventListener('click', async () => {
+       const evsAll = await fetchEvents(50);
+       const container = document.getElementById('events-admin-list');
+       if(container) container.innerHTML = renderAdminEventsList(evsAll);
+       alert('Changes saved/synced with database.');
+    });
+
+    const eventsList = document.getElementById('events-admin-list');
+    if (eventsList) {
+      eventsList.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        const act = btn.dataset.action;
+        if (!id || !act) return;
+        if (act === 'delete') await deleteEvent(id);
+        
+        const evsAll = await fetchEvents(50);
+        eventsList.innerHTML = renderAdminEventsList(evsAll);
+      });
+    }
+
+    // Highlights
+    const highlightAddBtn = document.getElementById('highlight-add-btn');
+    if (highlightAddBtn) highlightAddBtn.addEventListener('click', async () => {
+      const fileEl = document.getElementById('highlight-img-upload');
+      const file = fileEl && fileEl.files && fileEl.files[0];
+      if (!file) return;
+      const existing = await fetchHighlights(50);
+      if ((existing || []).length >= 8) {
+        alert('Only 8 highlights allowed. Use Replace to update or Delete extras.');
+        if (fileEl) fileEl.value = '';
+        return;
+      }
+      const url = await compressImageToDataURL(file);
+      if (!url) return;
+      await addHighlight(url);
+      if (document.getElementById('highlights-admin-list')) {
+        const hls = await fetchHighlights(50);
+        const cnt = (hls || []).length;
+        document.getElementById('highlights-admin-list').innerHTML = (hls || []).map(h => `
+          <div class="list-item">
+             <div style="width:100%; height:160px; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
+             <div style="display:flex; gap:8px; margin-top:6px; justify-content:center;">
+               <button class="btn-save" data-action="replace" data-id="${h.id}">Replace</button>
+               <button class="btn-save" style="background:#dc3545; ${cnt>8 ? '' : 'display:none;'}" data-action="delete" data-id="${h.id}">Delete</button>
+             </div>
+          </div>
         `).join('');
       }
-      document.getElementById('teacher-name').value = '';
-      document.getElementById('teacher-availability').value = '';
+      if (fileEl) fileEl.value = '';
     });
+
+    // Highlights list actions (replace/delete)
+    const highlightsList = document.getElementById('highlights-admin-list');
+    if (highlightsList) {
+      highlightsList.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        const act = btn.dataset.action;
+        if (!id || !act) return;
+        if (act === 'delete') {
+          await deleteHighlight(id);
+        }
+        if (act === 'replace') {
+          const picker = document.createElement('input');
+          picker.type = 'file';
+          picker.accept = 'image/*';
+          picker.onchange = async () => {
+            const file = picker.files && picker.files[0];
+            if (!file) return;
+            const url = await compressImageToDataURL(file);
+            if (!url) return;
+            await replaceHighlight(id, url);
+            const hls = await fetchHighlights(50);
+            const cnt = (hls || []).length;
+            highlightsList.innerHTML = (hls || []).map(h => `
+              <div class="list-item">
+                 <div style="width:100%; height:160px; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
+                 <div style="display:flex; gap:8px; margin-top:6px; justify-content:center;">
+                   <button class="btn-save" data-action="replace" data-id="${h.id}">Replace</button>
+                   <button class="btn-save" style="background:#dc3545; ${cnt>8 ? '' : 'display:none;'}" data-action="delete" data-id="${h.id}">Delete</button>
+                 </div>
+              </div>
+            `).join('');
+          };
+          picker.click();
+        }
+        // After delete, refresh list
+        if (act === 'delete') {
+          const hls = await fetchHighlights(50);
+          const cnt = (hls || []).length;
+          highlightsList.innerHTML = (hls || []).map(h => `
+            <div class="list-item">
+               <div style="width:100%; height:160px; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
+               <div style="display:flex; gap:8px; margin-top:6px; justify-content:center;">
+                 <button class="btn-save" data-action="replace" data-id="${h.id}">Replace</button>
+                 <button class="btn-save" style="background:#dc3545; ${cnt>8 ? '' : 'display:none;'}" data-action="delete" data-id="${h.id}">Delete</button>
+               </div>
+            </div>
+          `).join('');
+        }
+      });
+    }
+    // Schedule
+    const schAddBtn = document.getElementById('sch-add-btn');
+    if (schAddBtn) schAddBtn.addEventListener('click', async () => {
+       const title = document.getElementById('sch-title').value.trim();
+       const start = document.getElementById('sch-start').value;
+       const end = document.getElementById('sch-end').value;
+       if(!title || !start || !end) return;
+       await addSchedule(title, start, end);
+       if (document.getElementById('schedule-admin-list')) {
+         const schs = await fetchSchedules(50);
+         document.getElementById('schedule-admin-list').innerHTML = schs.map(s => `
+           <div class="list-item"><h3>${s.title}</h3><p>${s.time}</p></div>
+         `).join('');
+       }
+       document.getElementById('sch-title').value = '';
+       document.getElementById('sch-start').value = '';
+       document.getElementById('sch-end').value = '';
+    });
+
+    // Rooms
     const roomAddBtn = document.getElementById('room-add-btn');
     if (roomAddBtn) roomAddBtn.addEventListener('click', async () => {
       const name = document.getElementById('room-name').value.trim();
@@ -821,44 +2193,42 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       document.getElementById('room-name').value = '';
     });
-    const saveBtn = document.getElementById('save-btn');
-    if (saveBtn) saveBtn.addEventListener('click', async () => {
+
+    // Facility Save
+    const facilitySaveBtn = document.getElementById('facility-save-btn');
+    if (facilitySaveBtn) facilitySaveBtn.addEventListener('click', async () => {
       try {
         const newData = {
-          ticker: document.getElementById('ticker-input').value,
-          officeInfo: {
-            registrarHours: document.getElementById('registrar-hours').value,
-            clinicStatus: document.getElementById('clinic-status').value,
-            guidanceAvailability: document.getElementById('guidance-availability').value
-          },
           facilityStatus: {
+            clinic: document.getElementById('clinic-status').value,
             library: document.getElementById('library-status').value,
-            canteen: document.getElementById('canteen-status').value,
-            laboratory: document.getElementById('laboratory-status').value
+            admin: document.getElementById('admin-status').value,
+            registrar: document.getElementById('registrar-status').value,
+            proware: document.getElementById('proware-status').value,
+            do: document.getElementById('do-status').value
           }
         };
         await saveConfigDocs(newData);
-        alert('Settings Saved');
+        alert('Facility Status Saved');
       } catch (e) {
         alert('Invalid data');
       }
     });
-    const cleanBtn = document.getElementById('clean-db-btn');
-    if (cleanBtn) cleanBtn.addEventListener('click', async () => {
-      const ok = confirm('This will delete all announcements, events, teachers, schedules, rooms and reset config. Continue?');
-      if (!ok) return;
-      await clearDatabase();
-      const a = document.getElementById('announcements-admin-list'); if (a) a.innerHTML = '';
-      const e = document.getElementById('events-admin-list'); if (e) e.innerHTML = '';
-      const t = document.getElementById('teachers-admin-list'); if (t) t.innerHTML = '';
-      const r = document.getElementById('rooms-admin-list'); if (r) r.innerHTML = '';
-      const statusEl = document.getElementById('db-status');
-      if (statusEl) {
-        const st = await checkFirestoreConnectivity();
-        statusEl.textContent = st.ok ? 'Connected to Firestore' : `Firestore error: ${st.error}`;
-        statusEl.style.color = st.ok ? '#2f855a' : '#c53030';
+
+    // Ticker Save
+    const tickerSaveBtn = document.getElementById('ticker-save-btn');
+    if (tickerSaveBtn) tickerSaveBtn.addEventListener('click', async () => {
+      try {
+        const newData = {
+          ticker: document.getElementById('ticker-input').value
+        };
+        await saveConfigDocs(newData);
+        alert('Ticker Saved');
+      } catch (e) {
+        alert('Invalid data');
       }
     });
+
     const statusEl = document.getElementById('db-status');
     if (statusEl) {
       const st = await checkFirestoreConnectivity();

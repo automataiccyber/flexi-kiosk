@@ -8,122 +8,84 @@
 </head>
 <body id="admin-view">
   <div class="admin-container">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-      <h1>Admin Dashboard</h1>
-      <a href="index.html" style="color:red; text-decoration:none;">Logout</a>
-    </div>
+    <!-- Top Navigation Header -->
+    <header class="admin-header">
+      <nav class="top-nav">
+        <button class="nav-btn active"><span class="nav-label">Announcements</span></button>
+        <button class="nav-btn" onclick="window.location='events.html'"><span class="nav-label">Upcoming Events</span></button>
+        <button class="nav-btn" onclick="window.location='facility.html'"><span class="nav-label">Facility Status</span></button>
+        <button class="nav-btn" onclick="window.location='highlights.html'"><span class="nav-label">Highlights</span></button>
+        <button class="nav-btn" onclick="window.location='ticker.html'"><span class="nav-label">Ticker</span></button>
+      </nav>
+    </header>
 
-    <section class="card" style="margin-bottom:1rem;">
-      <div class="card-header header-green">Scrolling Ticker</div>
-      <div class="card-body">
-        <div class="form-group">
-          <label>Message</label>
-          <input type="text" id="ticker-input" placeholder="Enter ticker text">
-        </div>
-      </div>
-    </section>
-
-    <section class="card" style="margin-bottom:1rem;">
-      <div class="card-header header-blue">School Announcements</div>
-      <div class="card-body">
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:0.5rem; align-items:end;">
-          <div class="form-group"><label>Title</label><input type="text" id="ann-title"></div>
-          <div class="form-group"><label>Date</label><input type="date" id="ann-date"></div>
-          <div class="form-group"><label>Time</label><input type="time" id="ann-time"></div>
-          <button id="ann-add-btn" class="btn-save">Add</button>
-        </div>
-        <div id="announcements-admin-list" style="margin-top:0.75rem;"></div>
-      </div>
-    </section>
-
-    <section class="card" style="margin-bottom:1rem;">
-      <div class="card-header header-green">Upcoming Events</div>
-      <div class="card-body">
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:0.5rem; align-items:end;">
-          <div class="form-group"><label>Title</label><input type="text" id="event-title"></div>
-          <div class="form-group"><label>Date</label><input type="date" id="event-date"></div>
-          <div class="form-group"><label>Image</label><input type="file" id="event-image-file" accept="image/*"></div>
-          <button id="event-add-btn" class="btn-save">Add</button>
-        </div>
-        <div id="events-admin-list" style="margin-top:0.75rem;"></div>
-      </div>
-    </section>
-
-    <section class="card" style="margin-bottom:1rem;">
-      <div class="card-header header-blue">Daily Schedule</div>
-      <div class="card-body">
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:0.5rem; align-items:end;">
-          <div class="form-group"><label>Title</label><input type="text" id="sch-title"></div>
-          <div class="form-group"><label>Start</label><input type="time" id="sch-start"></div>
-          <div class="form-group"><label>End</label><input type="time" id="sch-end"></div>
-          <button id="sch-add-btn" class="btn-save">Add</button>
-        </div>
-        <div id="schedule-admin-list" style="margin-top:0.75rem;"></div>
-      </div>
-    </section>
-
-    <section class="card" style="margin-bottom:1rem;">
-      <div class="card-header header-green">Media / QR / Daily Quote</div>
-      <div class="card-body" style="display:grid; grid-template-columns: 1fr 2fr; gap:0.75rem;">
-        <div class="form-group"><label>Type</label>
-          <select id="media-type">
-            <option value="image">Image</option>
-            <option value="qr">QR</option>
-            <option value="quote">Quote</option>
-          </select>
-        </div>
-        <div class="form-group"><label>Value</label><input type="text" id="media-value" placeholder="Text or label"></div>
-        <div class="form-group"><label>Upload Image</label><input type="file" id="media-image-file" accept="image/*"></div>
-      </div>
-    </section>
-
-    <section class="card" style="margin-bottom:1rem;">
-      <div class="card-header header-blue">Office Information</div>
-      <div class="card-body" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.75rem;">
-        <div class="form-group"><label>Registrar Hours</label><input type="text" id="registrar-hours" placeholder="8:00 AM - 5:00 PM"></div>
-        <div class="form-group"><label>Clinic Status</label>
-          <select id="clinic-status"><option>Open</option><option>Closed</option></select>
-        </div>
-        <div class="form-group"><label>Guidance Availability</label>
-          <select id="guidance-availability"><option>Available</option><option>Unavailable</option></select>
-        </div>
-      </div>
-    </section>
-
-    <section class="card" style="margin-bottom:1rem;">
-      <div class="card-header header-green">Facility Status</div>
-      <div class="card-body" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.75rem;">
-        <div class="form-group"><label>Library</label>
-          <select id="library-status"><option>Open</option><option>Closed</option></select>
-        </div>
-        <div class="form-group"><label>Canteen</label>
-          <select id="canteen-status"><option>Open</option><option>Closed</option></select>
-        </div>
-        <div class="form-group"><label>Laboratory</label>
-          <select id="laboratory-status"><option>Available</option><option>Unavailable</option></select>
-        </div>
-      </div>
-    </section>
-
-    <section class="card" style="margin-bottom:1rem;">
-      <div class="card-header header-blue">Room Availability</div>
-      <div class="card-body">
-        <div style="display:grid; grid-template-columns: 2fr 1fr auto; gap:0.5rem; align-items:end;">
-          <div class="form-group"><label>Room Name</label><input type="text" id="room-name" placeholder="Room 101"></div>
-          <div class="form-group"><label>Status</label>
-            <select id="room-status"><option>Free</option><option>Occupied</option></select>
+    <main class="content-area">
+      
+      <!-- Announcements Section -->
+      <section id="announcements" class="admin-section active">
+        <!-- Title Input (10% height) -->
+        <div class="ann-row h-101">
+          <div class="label-input">
+            <label>Title</label>
+            <input type="text" id="ann-title" placeholder="Enter title">
           </div>
-          <button id="room-add-btn" class="btn-save">Add</button>
         </div>
-        <div id="rooms-admin-list" style="margin-top:0.75rem;"></div>
-      </div>
-    </section>
 
-    <div style="display:flex; gap:0.75rem;">
-      <button id="save-btn" class="btn-save">Save All</button>
-      <a href="dashboard.html" class="btn-save" style="text-decoration:none; display:inline-flex; align-items:center;">View Dashboard &rarr;</a>
-    </div>
+        <!-- Description Input (10% height) -->
+        <div class="ann-row h-10">
+          <div class="label-input">
+            <label>Description</label>
+            <input type="text" id="ann-desc" placeholder="Short description">
+          </div>
+        </div>
+
+        <!-- Meta Input (Date, Time, Icon) (10% height) -->
+        <div class="ann-row h-10">
+          <div class="meta-group">
+            <div class="label-input">
+              <label>Date</label>
+              <input type="date" id="ann-date">
+            </div>
+            <div class="label-input">
+              <label>Time</label>
+              <input type="time" id="ann-time">
+            </div>
+            <div class="label-input">
+              <label>Icon</label>
+              <select id="ann-icon">
+                <option value="📢">📢</option>
+                <option value="🔔">🔔</option>
+                <option value="⚠️">⚠️</option>
+                <option value="🎉">🎉</option>
+                <option value="📅">📅</option>
+                <option value="🏆">🏆</option>
+                <option value="⚽">⚽</option>
+                <option value="🎵">🎵</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add Button (5% height) -->
+        <div class="ann-row h-5">
+          <button id="ann-add-btn" class="btn-action full">Add</button>
+        </div>
+
+        <!-- Announcement List (40% height) -->
+        <div class="ann-row h-40 list-container">
+          <div id="announcements-admin-list" class="scroll-content"></div>
+        </div>
+
+        <!-- Action Buttons (10% height) -->
+        <div class="ann-row h-10 actions-container">
+          <button id="ann-save-btn" class="btn-save">Save</button>
+          <a href="dashboard.html" class="btn-link">Dashboard</a>
+        </div>
+      </section>
+
+    </main>
   </div>
+
   <script src="firebase-config.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
