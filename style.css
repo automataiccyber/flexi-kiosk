@@ -615,9 +615,11 @@ body {
   .ann-row.h-5 { height: 8svh; }
   .ann-row.h-40 { height: 44svh; }
   .actions-container.h-10 { height: 8svh; }
-  /* Restore blue margins with thin borders on mobile */
-  .h-10, .h-40, .h-55, .h-555, .h-100, .h-101 { border-top: 2px solid #005596; border-bottom: 0; }
-  .actions-container.h-10 { border-top: 2px solid #005596; }
+  /* Decorative 0.5em blue margin strips without affecting layout */
+  .h-10, .h-40, .h-55, .h-555, .h-100, .h-101 { box-shadow: inset 0 8px 0 #005596; }
+  .actions-container.h-10 { box-shadow: inset 0 8px 0 #005596; }
+  /* Add button top spacing across pages */
+  .ann-row.h-5 { padding-top: 0.5em; }
   /* Remove extra bottom space under action buttons */
   .actions-container { padding: 0 !important; margin: 0 !important; }
   /* Ensure internal sections handle overflow */
