@@ -354,9 +354,14 @@ footer {
   .row-highlights-facility { height: 26svh !important; }
   footer { height: 5svh !important; }
   .gap-blue, .black-lines { height: 0 !important; }
-  /* Announcements list should scroll internally, not clip */
-  #announcements-list { height: 100%; overflow-y: auto; }
-  .announcement-item { padding: 0.6vh 0.75rem; border-radius: 16px; }
+  /* Announcements should fit 3 items without scrolling */
+  .ann-title-bar { height: 3svh !important; }
+  .bar-body { padding: 0.3svh 0.5rem; gap: 0.3svh; }
+  #announcements-list { overflow: hidden; }
+  .announcement-item { min-height: 6svh; padding: 0.4svh 0.6rem; border-radius: 14px; }
+  .announcement-item .icon { font-size: clamp(0.9rem, 1.8svh, 1.2rem); }
+  .announcement-item .text h3 { font-size: clamp(0.75rem, 1.8svh, 0.95rem); }
+  .announcement-item .text p { font-size: clamp(0.65rem, 1.6svh, 0.85rem); }
 }
 /* Calendar styles - Updated to match request */
 .calendar-card { border: none; border-radius: 0; background: transparent; }

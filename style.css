@@ -605,13 +605,18 @@ body {
   body#admin-view { height: 100svh; overflow: hidden; }
   .admin-container { height: 100%; }
   .admin-header { height: 10svh; flex: 0 0 auto; }
+  .top-nav .nav-btn { padding: 0 0.25rem; }
+  .nav-label { font-size: clamp(0.6rem, 1.8vw, 0.85rem); }
+  .nav-btn.active { border-bottom-width: 2px; }
   .content-area { height: 90svh; flex: 0 0 auto; }
   /* Announcements page rows */
   .ann-row.h-101 { height: 12svh; }
   .ann-row.h-10 { height: 8svh; }
   .ann-row.h-5 { height: 8svh; }
-  .ann-row.h-40 { height: 42svh; }
-  .actions-container.h-10 { height: 10svh; }
+  .ann-row.h-40 { height: 44svh; }
+  .actions-container.h-10 { height: 8svh; }
+  /* Reduce heavy borders to avoid layout overflow */
+  .h-10, .h-40, .h-55, .h-555, .h-100, .h-101 { border-top: 0; border-bottom: 0; }
   /* Ensure internal sections handle overflow */
   .scroll-content { overflow-y: auto; }
   /* Keep action buttons fully visible */
