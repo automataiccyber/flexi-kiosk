@@ -8,6 +8,11 @@
   --text-color: #1e293b;
   --sidebar-width: 250px;
   --header-height: 60px;
+  --primary-blue: #005596;
+  --bg-white: #ffffff;
+  --text-dark: #1e293b;
+  --text-light: #64748b;
+  --bg-creamy: #f8fafc;
 }
 
 body {

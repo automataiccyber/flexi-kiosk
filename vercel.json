@@ -1,15 +1,17 @@
 {
   "version": 2,
   "builds": [
-    { "src": "index.html", "use": "@vercel/static" },
-    { "src": "dashboard.html", "use": "@vercel/static" },
-    { "src": "admin.html", "use": "@vercel/static" },
-    { "src": "style.css", "use": "@vercel/static" },
-    { "src": "script.js", "use": "@vercel/static" }
+    { "src": "*.html", "use": "@vercel/static" },
+    { "src": "*.css", "use": "@vercel/static" },
+    { "src": "*.js", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/", "dest": "/index.html" },
     { "src": "/dashboard", "dest": "/dashboard.html" },
-    { "src": "/admin", "dest": "/admin.html" }
+    { "src": "/admin", "dest": "/admin.html" },
+    { "src": "/events", "dest": "/events.html" },
+    { "src": "/facility", "dest": "/facility.html" },
+    { "src": "/highlights", "dest": "/highlights.html" },
+    { "src": "/ticker", "dest": "/ticker.html" }
   ]
 }
