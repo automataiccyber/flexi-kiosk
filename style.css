@@ -21,8 +21,8 @@ body {
   font-family: 'Inter', sans-serif;
   background-color: #f0f2f5;
   color: var(--text-color);
-  height: 100vh;
-  overflow: hidden; /* Prevent body scroll */
+  min-height: 100svh;
+  overflow: auto; /* Allow page scroll on mobile */
 }
 
 *,

@@ -7,6 +7,17 @@
   <link href="https://fonts.googleapis.com/css2?family=Alice&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="backup.css">
   <link rel="stylesheet" href="dashboard-custom.css">
+  <style>
+    body#dashboard-view { height: 100svh; overflow: hidden; }
+    @media (max-width: 768px) and (orientation: portrait) {
+      .dash-header { height: 10svh; }
+      .row-announcements { height: 24svh; }
+      .row-teachers-activities { height: 35svh; }
+      .row-highlights-facility { height: 26svh; }
+      footer { height: 5svh; }
+      .gap-blue, .black-lines { height: 0; }
+    }
+  </style>
 </head>
 <body id="dashboard-view">
   <div class="dashboard-wrapper">

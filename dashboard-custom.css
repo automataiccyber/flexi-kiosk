@@ -344,6 +344,17 @@ footer {
   100% { transform: translate3d(-100%, 0, 0); } 
 } 
 
+/* Mobile no-scroll layout using svh to account for browser UI */
+@media (max-width: 768px) and (orientation: portrait) {
+  body#dashboard-view { height: 100svh; overflow: hidden; }
+  .dashboard-wrapper { height: 100svh; }
+  .dash-header { height: 10svh !important; }
+  .row-announcements { height: 24svh !important; }
+  .row-teachers-activities { height: 35svh !important; }
+  .row-highlights-facility { height: 26svh !important; }
+  footer { height: 5svh !important; }
+  .gap-blue, .black-lines { height: 0 !important; }
+}
 /* Calendar styles - Updated to match request */
 .calendar-card { border: none; border-radius: 0; background: transparent; }
 .calendar-card .card-body { padding: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
