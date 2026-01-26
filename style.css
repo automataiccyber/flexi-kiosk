@@ -198,6 +198,16 @@ body {
   background: #e2dddd;
   border-bottom: 1em solid #005596;
 }
+.h-1001 {
+  height: 13%;
+  background: #e2dddd;
+  border-top: 1em solid #005596;
+}
+.h-102 {
+  height: 13%;
+  background: #e2dddd;
+  border-bottom: 1em solid #005596;
+}
 
 .h-100 {
   height: 13%;
@@ -220,6 +230,13 @@ body {
 }
 
 .h-40 {
+  height: 43%;
+  background: #dee2e6; /* List background */
+  border-top: 1em solid #005596;
+  padding: 1rem;
+  overflow: hidden; /* Scroll handled by inner */
+}
+.h-404 {
   height: 43%;
   background: #dee2e6; /* List background */
   border-top: 1em solid #005596;
@@ -610,10 +627,14 @@ body {
   .nav-btn.active { border-bottom-width: 2px; }
   .content-area { height: 90svh; flex: 0 0 auto; }
   /* Announcements page rows */
-  .ann-row.h-101 { height: 12svh; }
-  .ann-row.h-10 { height: 8svh; }
-  .ann-row.h-5 { height: 8svh; }
-  .ann-row.h-40 { height: 46svh; }
+  .ann-row.h-101 { height: 11svh; }
+  .ann-row.h-102 { height: 12svh; }
+  .ann-row.h-10 { height: 9svh; }
+  .ann-row.h-1001 { height: 9svh; }
+  .ann-row.h-5 { height: 6svh; }
+  .ann-row.h-55 { height: 65svh; }
+  .ann-row.h-40 { height: 44svh; }
+  .ann-row.h-404 { height: 48svh; }
   .actions-container.h-10 { height: 8svh; }
   /* Decorative 0.5em blue margin strips without affecting layout */
   .h-10, .h-40, .h-55, .h-555, .h-100, .h-101 { box-shadow: inset 0 2px 0 #005596; }
@@ -625,9 +646,9 @@ body {
   /* Ensure internal sections handle overflow */
   .scroll-content { overflow-y: auto; }
   /* Keep action buttons fully visible */
-  .actions-container button, .actions-container a { height: 100%; }
+  .actions-container button, .actions-container a { height: 60%; }
   /* Facility page layout exact fit */
-  .facility-grid-container { height: 82svh; }
+  .facility-grid-container { height: 82svh; flex: 0 0 82svh; }
   /* Ticker page exact fit */
   .h-555 { height: 62svh; }
 }

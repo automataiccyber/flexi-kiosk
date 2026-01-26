@@ -349,15 +349,15 @@ footer {
   body#dashboard-view { height: 100svh; overflow: hidden; }
   .dashboard-wrapper { height: 100svh; }
   .dash-header { height: 10svh !important; }
-  .row-announcements { height: 23.7svh !important; }
+  .row-announcements { height: 24svh !important; }
   .row-teachers-activities { height: 35svh !important; }
   .row-highlights-facility { height: 26svh !important; }
   footer { height: 5svh !important; }
   .gap-blue { height: 0 !important; }
-  .black-lines { height: 0.3svh !important; }
+  .black-lines { height: 0.6svh !important; background: #000; }
   /* Announcements should fit 3 items without scrolling */
   .ann-title-bar { height: 3svh !important; }
-  .bar-body { padding: 0.2svh 0.5rem 0; gap: 0.25svh; }
+  .bar-body { padding: 0.5svh 0.5rem 0; gap: 0.25svh; }
   #announcements-list { overflow: hidden; }
   #announcements-list .announcement-item:nth-child(n+4) { display: none; }
   .announcement-item { min-height: 6svh; padding: 0.4svh 0.6rem; border-radius: 14px; }
