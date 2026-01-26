@@ -615,8 +615,11 @@ body {
   .ann-row.h-5 { height: 8svh; }
   .ann-row.h-40 { height: 44svh; }
   .actions-container.h-10 { height: 8svh; }
-  /* Reduce heavy borders to avoid layout overflow */
-  .h-10, .h-40, .h-55, .h-555, .h-100, .h-101 { border-top: 0; border-bottom: 0; }
+  /* Restore blue margins with thin borders on mobile */
+  .h-10, .h-40, .h-55, .h-555, .h-100, .h-101 { border-top: 2px solid #005596; border-bottom: 0; }
+  .actions-container.h-10 { border-top: 2px solid #005596; }
+  /* Remove extra bottom space under action buttons */
+  .actions-container { padding: 0 !important; margin: 0 !important; }
   /* Ensure internal sections handle overflow */
   .scroll-content { overflow-y: auto; }
   /* Keep action buttons fully visible */
