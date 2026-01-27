@@ -360,6 +360,18 @@ function hideOverlay() {
   if (overlay) overlay.style.display = 'none';
 }
 
+function showPowerOff() {
+  const el = document.getElementById('power-overlay');
+  if (el) el.style.display = 'block';
+  try { console.log('Power OFF overlay shown'); } catch {}
+}
+
+function hidePowerOff() {
+  const el = document.getElementById('power-overlay');
+  if (el) el.style.display = 'none';
+  try { console.log('Power OFF overlay hidden'); } catch {}
+}
+
 function showModal(title, html) {
   const overlay = document.getElementById('modal-overlay');
   const t = document.getElementById('modal-title');
@@ -371,7 +383,7 @@ function showModal(title, html) {
   if (headerRow) { headerRow.style.display = 'flex'; headerRow.style.flex = '0 0 10%'; }
   const closeBtn = document.getElementById('modal-close');
   const lower = String(title || '').toLowerCase();
-  const noClose = (lower === 'calendar' || lower === 'help');
+  const noClose = (lower === 'help' || lower === 'calendar' || lower === 'highlights');
   if (closeBtn) closeBtn.style.display = noClose ? 'none' : 'inline-block';
   if (lower === 'help') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
   else if (lower === 'calendar') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
@@ -485,6 +497,214 @@ function normalizeText(s) {
   return (s || '').toLowerCase().replace(/[\.,!?]/g, '').trim();
 }
 
+function soundex(s) {
+  s = (s || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (!s) return '';
+  const first = s[0];
+  const map = { b:1,f:1,p:1,v:1, c:2,g:2,j:2,k:2,q:2,s:2,x:2,z:2, d:3,t:3, l:4, m:5,n:5, r:6 };
+  let prev = map[first] || 0;
+  let code = first.toUpperCase();
+  for (let i = 1; i < s.length && code.length < 4; i++) {
+    const ch = s[i];
+    const val = map[ch] || 0;
+    if (val !== 0 && val !== prev) code += String(val);
+    prev = val;
+  }
+  while (code.length < 4) code += '0';
+  return code.slice(0,4);
+}
+
+function wordDistance(a, b) {
+  const m = a.length;
+  const n = b.length;
+  if (!m || !n) return Math.max(m, n);
+  const dp = new Array(m + 1);
+  for (let i = 0; i <= m; i++) dp[i] = i;
+  for (let j = 1; j <= n; j++) {
+    let prev = dp[0];
+    dp[0] = j;
+    for (let i = 1; i <= m; i++) {
+      const tmp = dp[i];
+      if (a[i - 1] === b[j - 1]) dp[i] = prev;
+      else dp[i] = Math.min(prev + 1, dp[i] + 1, dp[i - 1] + 1);
+      prev = tmp;
+    }
+  }
+  return dp[m];
+}
+
+function fuzzyMatchToken(token, keyword) {
+  if (!token || !keyword) return false;
+  const t = token.replace(/[^a-z0-9]/g,'');
+  const k = keyword.replace(/[^a-z0-9]/g,'');
+  if (!t || !k) return false;
+  if (t === k) return true;
+  // consider plural/singular
+  const tSing = t.replace(/(es|s)$/,'');
+  const kSing = k.replace(/(es|s)$/,'');
+  if (tSing && kSing && tSing === kSing) return true;
+  // phonetic match
+  if (soundex(t) === soundex(k)) return true;
+  const d = wordDistance(t, k);
+  if (k.length <= 3) return d <= 1;
+  if (k.length <= 4) return (soundex(t) === soundex(k)) || (d <= 1 && t[0] === k[0]);
+  if (k.length <= 6) return d <= 2;
+  return d <= 3;
+}
+
+function fuzzyHasKeyword(text, keyword) {
+  if (!keyword) return false;
+  if (!text) return false;
+  if (text.includes(keyword)) return true;
+  const words = text.split(/\s+/);
+  return words.some(w => fuzzyMatchToken(w, keyword));
+}
+
+function fuzzyHasAnyKeyword(text, keywords) {
+  if (!keywords || !keywords.length) return false;
+  return keywords.some(k => fuzzyHasKeyword(text, k));
+}
+
+function classifyIntent(text) {
+  const t = normalizeText(text);
+  const intents = [
+    { name: 'off', keywords: ['off','turn off','power off','shut down','shutdown','screen off','screenoff','turnoff','poweroff'] },
+    { name: 'on', keywords: ['on','turn on','power on','screen on','wake up'] },
+    { name: 'close', keywords: ['close','clause','claus','cloze','clothes','glose','exit','dismiss','shut'] },
+    { name: 'help', keywords: ['help','helf','helt','halp','hep','assist','assistance','commands','command list'] },
+    { name: 'next', keywords: ['next','next page'] },
+    { name: 'previous', keywords: ['previous','previous page','go back','back','prev'] },
+    { name: 'announcements', keywords: ['announcement','announcements','show announcements','announcements list','full announcement','announcemnts','announcementz'] },
+    { name: 'events', keywords: ['event','events','bends','show events','evnt','ivent','even','eventz'] },
+    { name: 'calendar', keywords: ['calendar','schedule'] },
+    { name: 'teachers', keywords: ['teacher','teachers','teachers availability','availability','faculty'] },
+    { name: 'highlights', keywords: ['highlight','highlights'] },
+    { name: 'date', keywords: ['date','today','tomorrow','week','month','year'] },
+  ];
+  const words = t.split(/\s+/);
+  let best = { name: null, score: 0 };
+  for (const intent of intents) {
+    let score = 0;
+    for (const kw of intent.keywords) {
+      const exact = t.includes(kw);
+      const fuzzy = fuzzyHasKeyword(t, kw);
+      if (exact) score += 3;
+      else if (fuzzy) score += 2;
+      else {
+        // token-level phonetic proximity
+        for (const w of words) {
+          if (fuzzyMatchToken(w, kw)) { score += 1; break; }
+        }
+      }
+    }
+    // penalties to reduce conflicts
+    if (intent.name === 'next' && fuzzyHasAnyKeyword(t, ['previous','back','prev'])) score -= 2;
+    if (intent.name === 'previous' && fuzzyHasAnyKeyword(t, ['next'])) score -= 2;
+    if (intent.name === 'close' && fuzzyHasAnyKeyword(t, ['next'])) score -= 2; // avoid next->exit confusion
+    // strict-only terms for close: count only if exact
+    if (intent.name === 'close') {
+      if (t.includes('exit')) score += 2; else score += 0;
+      if (t.includes('dismiss')) score += 2; else score += 0;
+      if (t.includes('shut')) score += 2; else score += 0;
+    }
+    if (intent.name === 'off') {
+      if (t.includes('off')) score += 1;
+    }
+    if (score > best.score) best = { name: intent.name, score };
+  }
+  const confidence = Math.min(1, best.score / 6);
+  if (!best.name || confidence < 0.34) return { intent: null, confidence: 0 };
+  return { intent: best.name, confidence };
+}
+
+async function executeIntent(intent, text) {
+  const t = normalizeText(text);
+  if (intent === 'off') { showPowerOff(); return true; }
+  if (intent === 'on') { hidePowerOff(); return true; }
+  if (intent === 'help') { closeAllPopups(); showHelpPaged(0, null); return true; }
+  if (intent === 'close') { closeAllPopups(); return true; }
+  if (intent === 'next' && !fuzzyHasAnyKeyword(t, ['previous','back','prev'])) {
+    try {
+      const isModalOpen = document.getElementById('modal-overlay').style.display === 'flex';
+      if (isModalOpen) {
+        if (advanceModalPage(1)) { /* paged */ } else { return !!showOverlay('Navigation', '<div>No more pages</div>'); }
+      } else {
+        advanceEvents(1);
+      }
+    } catch {}
+    showOverlay('Navigation', '<div>Next page</div>');
+    return true;
+  }
+  if (intent === 'previous') {
+    try {
+      const isModalOpen = document.getElementById('modal-overlay').style.display === 'flex';
+      if (isModalOpen) {
+        if (advanceModalPage(-1)) { /* paged */ } else { return !!showOverlay('Navigation', '<div>No previous pages</div>'); }
+      } else {
+        advanceEvents(-1);
+      }
+    } catch {}
+    showOverlay('Navigation', '<div>Previous page</div>');
+    return true;
+  }
+  if (intent === 'calendar') { scheduleCalendarCommand(t); return true; }
+  if (intent === 'date') {
+    closeAllPopups();
+    const cfg = await fetchConfig('date');
+    const v = cfg && (cfg.value || cfg.date || cfg.text);
+    const now = new Date();
+    const disp = v || now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    logInfo('voice_command', { command: 'date' });
+    showModal('Date', `<div>${disp}</div>`);
+    return true;
+  }
+  if (intent === 'announcements') {
+    closeAllPopups();
+    showModalNoHeader('<div>Loading Announcements...</div>', 600000);
+    const anns = await fetchAnnouncements(200);
+    logInfo('voice_command', { command: 'announcements' });
+    showAnnouncementsPaged(anns, 0, null);
+    return true;
+  }
+  if (intent === 'events') {
+    closeAllPopups();
+    showModalNoHeader('<div>Loading Events...</div>', 600000);
+    const evsAll = await fetchEvents(50);
+    logInfo('voice_command', { command: 'events' });
+    const list = evsAll;
+    showEventsPaged(list, 0, null);
+    return true;
+  }
+  if (intent === 'teachers') {
+    closeAllPopups();
+    showModalNoHeader('<div>Loading Teachers...</div>', 600000);
+    const tchs = await fetchTeachers(200);
+    const html = tchs.map(s => `<div style="padding:6px 8px;"><b>${s.name}</b><div style="color:#4a5568; font-size:0.85rem;">${s.availability}</div></div>`).join('');
+    logInfo('voice_command', { command: 'teachers' });
+    showModal('Teachers Availability', html);
+    return true;
+  }
+  if (intent === 'highlights') {
+    closeAllPopups();
+    showModalNoHeader('<div>Loading Highlights...</div>', 600000);
+    const hls = (await fetchHighlights(8)).slice(0, 8);
+    const html = `
+      <div style="display:flex; flex-direction:column; height:100%;">
+        <div style="display:grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); gap: 12px; flex:1 1 auto;">
+          ${hls.map(h => `
+            <div style="padding: 0; display:flex; align-items:center; justify-content:center; background: transparent;">
+              <div style="width:100%; height:100%; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    logInfo('voice_command', { command: 'highlights' });
+    showModal('HIGHLIGHTS', html || '<div>No highlights available</div>');
+    return true;
+  }
+  return false;
+}
 function getHelpData() {
   const basic = [
     ['Help', 'Shows this help pop up'],
@@ -531,7 +751,7 @@ function renderHelpPage(pageIdx, prevIdx) {
   return `
     <div style="display:flex; flex-direction:column; height:100%;">
       <div class="help-fit" style="flex:1 1 0; min-height:0; display:flex; flex-direction:column; gap:8px; animation: helpSlideIn 240ms ease; will-change: transform, opacity; padding: 2px 0; font-size:clamp(0.8rem, 1.5vw, 1rem); line-height:1.5; overflow:hidden; transform-origin: top left;">
-        <div style="margin-bottom:6px; font-weight:bold; font-size:clamp(0.95rem, 1.8vw, 1.12rem);">Start with “Hey flexi” or “Hey flexy”, then say:</div>
+        <div style="margin-bottom:6px; font-weight:bold; font-size:clamp(0.95rem, 1.8vw, 1.12rem);">Say a command directly, for example:</div>
         <div style="font-weight:bold; margin-bottom:4px; font-size:clamp(0.95rem, 1.8vw, 1.12rem);">${title}</div>
         ${items}
       </div>
@@ -1101,7 +1321,7 @@ function scheduleCalendarCommand(text) {
   const t = normalizeText(text);
   window._calendarBufferedText = (window._calendarBufferedText ? (window._calendarBufferedText + ' ' + t) : t);
   clearTimeout(window._calendarDebounceTimer);
-  window._calendarDebounceTimer = setTimeout(executeBufferedCalendar, 800);
+  window._calendarDebounceTimer = setTimeout(executeBufferedCalendar, 1500);
 }
 
 async function executeBufferedCalendar() {
@@ -1153,29 +1373,47 @@ async function executeBufferedCalendar() {
 async function handleVoice(text) {
   const q = normalizeText(text);
   const data = getData();
-  const prefixes = ['hey flexi', 'hey flexy'];
-  const wake = prefixes.find(p => q.startsWith(p));
-  const now = Date.now();
-  const isWoke = !!wake || (window._wakeUntil && now <= window._wakeUntil);
-  if (!isWoke) return;
-  const t = (wake ? q.replace(wake, '').trim() : q);
-  if (wake) window._wakeUntil = now + 4000;
-  if (window._busyCalendar) { if (t.includes('close')) { closeAllPopups(); window._busyCalendar = false; } return; }
+  const t = q;
+  if (window._busyCalendar) { if (fuzzyHasKeyword(t, 'close')) { closeAllPopups(); window._busyCalendar = false; } return; }
   
   // Log for debugging
   console.log('Voice Command:', t);
 
-  if (t === 'help' || t.includes('help') || t.includes('what can you do')) {
+  const guess = classifyIntent(t);
+  if (guess && guess.intent) {
+    try {
+      const nowTs = Date.now();
+      if (['next','previous'].includes(guess.intent) && (nowTs - (window._lastIntentTs || 0)) < 1200 && window._lastIntent === guess.intent) {
+        return;
+      }
+      const ok = await executeIntent(guess.intent, t);
+      if (ok) {
+        window._lastIntent = guess.intent;
+        window._lastIntentTs = nowTs;
+        return;
+      }
+    } catch {}
+  }
+
+  if (fuzzyHasAnyKeyword(t, ['off', 'turn off', 'power off', 'shut down', 'screen off'])) {
+    showPowerOff();
+    return;
+  }
+  if (fuzzyHasAnyKeyword(t, ['on', 'turn on', 'power on', 'screen on', 'wake up'])) {
+    hidePowerOff();
+    return;
+  }
+
+  if (fuzzyHasAnyKeyword(t, ['help', 'what can you do', 'commands', 'command list', 'halp', 'assist', 'assistance'])) {
     closeAllPopups();
     return showHelpPaged(0, null);
   }
-  if (t.includes('close')) { 
+  if (fuzzyHasAnyKeyword(t, ['close','clause','claus','cloze','clothes','glose','shut','exit','dismiss'])) { 
     closeAllPopups(); 
     return; 
   }
 
-  // Next Command
-  if (t === 'next' || t.includes('next page') || (t.includes('next') && !t.includes('previous') && !t.includes('back'))) { 
+  if (fuzzyHasAnyKeyword(t, ['next', 'next page']) && !fuzzyHasAnyKeyword(t, ['previous', 'back', 'prev'])) { 
     try { 
       const isModalOpen = document.getElementById('modal-overlay').style.display === 'flex';
       
@@ -1196,8 +1434,7 @@ async function handleVoice(text) {
     return showOverlay('Navigation', '<div>Next page</div>'); 
   }
 
-  // Previous Command
-  if (t === 'previous' || t === 'back' || t.includes('previous page') || t.includes('go back') || t.includes('prev')) { 
+  if (fuzzyHasAnyKeyword(t, ['previous', 'previous page', 'go back', 'back', 'prev'])) { 
     try { 
       const isModalOpen = document.getElementById('modal-overlay').style.display === 'flex';
       
@@ -1213,9 +1450,8 @@ async function handleVoice(text) {
     } catch (e) { console.error(e); } 
     return showOverlay('Navigation', '<div>Previous page</div>'); 
   }
-  // Calendar-related commands: debounce to avoid partial triggers
-  if (t.includes('calendar') || hasTagQuery(t) || parseDate(t)) { scheduleCalendarCommand(t); return; }
-  if (t === 'date' || t.includes(' date')) {
+  if (fuzzyHasKeyword(t, 'calendar') || hasTagQuery(t) || parseDate(t)) { scheduleCalendarCommand(t); return; }
+  if (t === 'date' || fuzzyHasKeyword(t, 'date')) {
     closeAllPopups();
     const cfg = await fetchConfig('date');
     const v = cfg && (cfg.value || cfg.date || cfg.text);
@@ -1226,7 +1462,7 @@ async function handleVoice(text) {
   }
   // Tag commands are handled via debounce above
 
-  if (/^(show|open)\s+(office|office information)/.test(t) || t.includes('registrar') || t.includes('clinic') || t.includes('guidance')) {
+  if (/^(show|open)\s+(office|office information)/.test(t) || fuzzyHasAnyKeyword(t, ['registrar', 'clinic', 'guidance', 'office'])) {
     closeAllPopups();
     const off = await fetchConfig('officeInfo') || {};
     const fs = await fetchConfig('facilityStatus') || {};
@@ -1241,7 +1477,7 @@ async function handleVoice(text) {
     return showModal('Faculty Status', html);
   }
 
-  if (t.includes('library') || t.includes('canteen') || t.includes('laboratory') || t.includes('facility')) {
+  if (fuzzyHasAnyKeyword(t, ['library', 'canteen', 'laboratory', 'facility'])) {
     closeAllPopups();
     const off = await fetchConfig('officeInfo') || {};
     const fs = await fetchConfig('facilityStatus') || {};
@@ -1256,7 +1492,7 @@ async function handleVoice(text) {
     return showModal('Faculty Status', html);
   }
 
-  if (t.includes('room')) {
+  if (fuzzyHasKeyword(t, 'room')) {
     closeAllPopups();
     const rooms = await fetchRooms();
     const free = rooms.filter(r => normalizeText(r.status) === 'free').map(r => r.name).slice(0,6);
@@ -1267,7 +1503,7 @@ async function handleVoice(text) {
     `);
   }
 
-  if (t.includes('full announcement') || t.includes('show announcements') || t.includes('announcements list') || t.includes('announcement')) {
+  if (t.includes('full announcement') || t.includes('show announcements') || t.includes('announcements list') || fuzzyHasKeyword(t, 'announcement')) {
     closeAllPopups();
     showModalNoHeader('<div>Loading Announcements...</div>', 600000); // Instant feedback
     const anns = await fetchAnnouncements(200);
@@ -1276,7 +1512,7 @@ async function handleVoice(text) {
   }
 
   const calRange = parseDate(t);
-  if ((t.includes('schedule') || (t.includes('event') && t.includes('on')) || (t.includes('announcement') && t.includes('on'))) && calRange) {
+  if ((fuzzyHasAnyKeyword(t, ['schedule']) || (fuzzyHasAnyKeyword(t, ['event','events']) && fuzzyHasKeyword(t, 'on')) || (fuzzyHasAnyKeyword(t, ['announcement','announcements']) && fuzzyHasKeyword(t, 'on'))) && calRange) {
     closeAllPopups();
     showModalNoHeader('<div>Loading...</div>', 600000);
     const annsAll = await fetchAnnouncements(200);
@@ -1298,9 +1534,9 @@ async function handleVoice(text) {
           return { y: d.getFullYear(), m: d.getMonth(), d: d.getDate() };
         }).filter(p => p.m === md.m && p.d === md.d).map(p => p.y);
       };
-      const useBoth = t.includes('schedule');
+      const useBoth = fuzzyHasKeyword(t, 'schedule');
       const poolYears = useBoth ? yearsFrom(annsAll).concat(yearsFrom(evsAll)) 
-                                : (t.includes('event') ? yearsFrom(evsAll) : yearsFrom(annsAll));
+                                : (fuzzyHasKeyword(t, 'event') ? yearsFrom(evsAll) : yearsFrom(annsAll));
       if (poolYears.length) {
         const latestYear = Math.max.apply(null, poolYears);
         const from = new Date(latestYear, md.m, md.d, 0,0,0,0);
@@ -1322,24 +1558,24 @@ async function handleVoice(text) {
     const evs = evsAll.filter(inRangeEvt);
     const opts = { year: 'numeric', month: 'short', day: 'numeric' };
     const titleDate = calRange.from.toLocaleDateString('en-US', opts);
-    if (t.includes('schedule')) {
+    if (fuzzyHasKeyword(t, 'schedule')) {
       const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${(evs.length?evs:[]).map(e => `<div>${e.title} — ${e.date}</div>`).join('') || '<div>No events</div>'}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
       logInfo('voice_command', { command: 'calendar_schedule' });
       return showModal(`Calendar — ${titleDate}`, html);
     }
-    if (t.includes('event')) {
+    if (fuzzyHasAnyKeyword(t, ['event','events'])) {
       const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${(evs.length?evs:[]).map(e => `<div>${e.title} — ${e.date}</div>`).join('') || '<div>No events</div>'}</div>`;
       logInfo('voice_command', { command: 'calendar_events_on' });
       return showModal(`Calendar — ${titleDate}`, html);
     }
-    if (t.includes('announcement')) {
+    if (fuzzyHasAnyKeyword(t, ['announcement','announcements'])) {
       const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
       logInfo('voice_command', { command: 'calendar_announcements_on' });
       return showModal(`Calendar — ${titleDate}`, html);
     }
   }
 
-  if (t.includes('teacher') || t.includes('teachers availability') || t.includes('availability')) {
+  if (fuzzyHasAnyKeyword(t, ['teacher', 'teachers', 'teachers availability', 'availability', 'faculty'])) {
     closeAllPopups();
     showModalNoHeader('<div>Loading Teachers...</div>', 600000);
     const tchs = await fetchTeachers(200);
@@ -1348,7 +1584,7 @@ async function handleVoice(text) {
     return showModal('Teachers Availability', html);
   }
 
-  if (t.includes('event')) {
+  if (fuzzyHasAnyKeyword(t, ['event','events'])) {
     closeAllPopups();
     showModalNoHeader('<div>Loading Events...</div>', 600000);
     const range = parseDate(t);
@@ -1368,7 +1604,7 @@ async function handleVoice(text) {
   }
 
   // Calendar base is handled via debounce above
-  if (t.includes('highlight')) {
+  if (fuzzyHasKeyword(t, 'highlight')) {
     closeAllPopups();
     showModalNoHeader('<div>Loading Highlights...</div>', 600000);
     const hls = (await fetchHighlights(8)).slice(0, 8);
@@ -1823,8 +2059,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       if (!micStream && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
+          try { console.log('Requesting microphone access'); } catch {}
           micStream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } });
           permissionStatus = 'granted';
+          try { console.log('Microphone access granted'); } catch {}
           // Ensure tracks are kept alive
           micStream.getAudioTracks().forEach(track => {
               track.onended = () => { console.log('Audio track ended'); micStream = null; };
@@ -1842,78 +2080,116 @@ document.addEventListener('DOMContentLoaded', async () => {
         recog.lang = 'en-US';
         recog.continuous = true;
         recog.interimResults = true;
-        recog.maxAlternatives = 1;
-        recog.onresult = async (e) => {
+        recog.maxAlternatives = 3;
+        try { recog.onstart = () => { try { console.log('SpeechRecognition start'); } catch {} }; } catch {}
+        try { recog.onsoundstart = () => { try { console.log('Sound start'); } catch {} }; } catch {}
+        try { recog.onsoundend = () => { try { console.log('Sound end'); } catch {} }; } catch {}
+        try { recog.onspeechstart = () => { try { console.log('Speech start'); } catch {} }; } catch {}
+        try { recog.onspeechend = () => { try { console.log('Speech end'); } catch {} }; } catch {}
+    // If Whisper is available, prefer it
+    const hasWhisperSupport = () => {
+      try { return !!(window.WhisperWeb && typeof WhisperWeb.init === 'function' && typeof WhisperWeb.transcribe === 'function'); } catch { return false; }
+    };
+    async function startListeningWhisper() {
+      try {
+        const modelUrl = (window.WHISPER_MODEL_URL || 'models/ggml-base.en.bin');
+        await WhisperWeb.init({ modelUrl, useGPU: !!window.WHISPER_USE_GPU });
+      } catch (e) {
+        console.warn('Whisper init failed, falling back to native STT', e);
+        return false;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        const source = ctx.createMediaStreamSource(stream);
+        const processor = ctx.createScriptProcessor(4096, 1, 1);
+        let buf = [];
+        processor.onaudioprocess = async (ev) => {
+          const ch = ev.inputBuffer.getChannelData(0);
+          buf.push(Float32Array.from(ch));
+          const seconds = buf.reduce((s, a) => s + a.length, 0) / 16000;
+          if (seconds >= 1.2) {
+            const merged = new Float32Array(buf.reduce((n, a) => n + a.length, 0));
+            let off = 0; for (const a of buf) { merged.set(a, off); off += a.length; }
+            buf = [];
+            try {
+              const text = await WhisperWeb.transcribe(merged);
+              try { console.log('Mic heard (whisper):', text); } catch {}
+              const full = normalizeText(text || '');
+              if (!full) return;
+              if (Date.now() - lastCmdTs < 1200 && window._lastCmdStr === full) return;
+              lastCmdTs = Date.now();
+              window._lastCmdStr = full;
+              window._lastCmdTs = lastCmdTs;
+              const guess = classifyIntent(full);
+              if (guess && guess.intent) await handleVoice(full);
+            } catch (e) { console.warn('Whisper transcribe error', e); }
+          }
+        };
+        source.connect(processor);
+        processor.connect(ctx.destination);
+        return true;
+      } catch (e) {
+        console.warn('Audio capture for Whisper failed', e);
+        return false;
+      }
+    }
+    if (hasWhisperSupport()) {
+      const ok = await startListeningWhisper();
+      if (ok) {
+        // Do not set native recognizer when Whisper is active
+        recog = null;
+      }
+    }
+    if (!recog) return; // Whisper active; skip native onresult
+    recog.onresult = async (e) => {
           let interimTranscript = '';
           for (let i = e.resultIndex; i < e.results.length; i++) {
             const transcript = e.results[i][0].transcript;
             if (e.results[i].isFinal) {
+              try { console.log('Mic heard (final):', transcript); } catch {}
               voiceBuf += transcript + ' ';
             } else {
+              try { console.log('Mic heard (interim):', transcript); } catch {}
               interimTranscript += transcript;
             }
           }
           
           const fullInput = normalizeText(voiceBuf + interimTranscript);
-          const wakeWordIndex = fullInput.lastIndexOf('hey flexi');
-
-          if (wakeWordIndex !== -1) {
-            const commandPart = fullInput.substring(wakeWordIndex + 9).trim(); // 9 = len of 'hey flexi'
-            
-            // Check if we have a valid command
-            const commands = ['announcement','announcements','event','events','teacher','teachers','availability','faculty','calendar','highlight','highlights','commands','command','help','next','previous','prev','back','close','show','open','schedule','today','tomorrow','week','month','date'];
-            let hasCmd = commands.some(k => commandPart.includes(k));
-            // Also treat a recognized date phrase as a command (e.g., "hey flexi what is the schedule on jan 3")
-            if (!hasCmd) {
-              try { hasCmd = !!parseDate(commandPart) || hasTagQuery(commandPart); } catch {}
+          const kw = ['commands','command','announcement','announcements','event','events','bends','calendar','date','day','year','month','next','previous','prev','back','close','clause','claus','cloze','clothes','glose','exit','dismiss','shut','show','highlight','highlights','off','on','turnoff','turnon','poweroff','poweron','shutdown','screenoff','screenon','teacher','teachers','availability','faculty','open','schedule','today','tomorrow','week','help','helf','helt','halp','hep','assist','assistance'];
+          const hasKw = kw.some(k => {
+            if (['exit','dismiss','shut'].includes(k)) return fullInput.includes(k); // strict
+            return fuzzyHasKeyword(fullInput, k) || fullInput.includes('the next') || fullInput.includes('the previous');
+          }) || hasTagQuery(fullInput);
+          if (hasKw) {
+            if (Date.now() - lastCmdTs < 1200 && window._lastCmdStr === fullInput) {
+              voiceBuf = '';
+              return;
             }
-            
-            if (hasCmd) {
-               // Execute immediately without debouncing to avoid timer resets during rapid onresult bursts
-               if (Date.now() - lastCmdTs < 1000 && window._lastCmdStr === commandPart) {
-                   voiceBuf = ''; 
-                   return;
-               }
-               lastCmdTs = Date.now();
-               window._lastCmdStr = commandPart;
-               const cmdToProcess = 'hey flexi ' + commandPart;
-               voiceBuf = ''; 
-               try {
-                 await handleVoice(cmdToProcess);
-               } catch (err) {
-                 console.error('Voice command error:', err);
-               }
-            } else {
-               clearTimeout(voiceTimer);
-               // Wake word detected but no command yet. 
-               // Do NOT clear buffer. Allow user to finish sentence.
-               // Set a long timeout to reset if they never say a command
-               voiceTimer = setTimeout(() => {
-                  voiceBuf = ''; // Reset if silence for too long
-               }, 5000);
+            const alts = [];
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+              const r = e.results[i];
+              for (let j = 0; j < Math.min(r.length, 3); j++) {
+                try { console.log('Mic alternative:', r[j].transcript); } catch {}
+                alts.push(normalizeText((voiceBuf + ' ' + r[j].transcript).trim()));
+              }
             }
-          } else {
-             const kw = ['commands','announcement','announcements','event','events','calendar','date','day','year','month','next','previous','prev','back','close','show'];
-             kw.push('highlight','highlights');
-             const hasKw = kw.some(k => fullInput.split(/\s+/).includes(k) || fullInput.includes('the next') || fullInput.includes('the previous')) || hasTagQuery(fullInput);
-             if (hasKw) {
-               if (Date.now() - lastCmdTs < 1000 && window._lastCmdStr === fullInput) {
-                 voiceBuf = '';
-                 return;
-               }
-               lastCmdTs = Date.now();
-               window._lastCmdStr = fullInput;
-               const cmdToProcess = fullInput;
-               voiceBuf = '';
-               try {
-                 await handleVoice(cmdToProcess);
-               } catch (err) {
-                 console.error('Voice command error:', err);
-               }
-               return;
-             }
-             if (voiceBuf.length > 200) voiceBuf = voiceBuf.slice(-100);
+            let bestText = fullInput;
+            let bestConf = 0;
+            const candidates = [fullInput].concat(alts);
+            for (const cand of candidates) {
+              const guess = classifyIntent(cand);
+              const conf = guess && guess.confidence || 0;
+              if (conf > bestConf) { bestConf = conf; bestText = cand; }
+            }
+            lastCmdTs = Date.now();
+            window._lastCmdStr = bestText;
+            window._lastCmdTs = lastCmdTs;
+            voiceBuf = '';
+            try { await handleVoice(bestText); } catch (err) { console.error('Voice command error:', err); }
+            return;
           }
+          if (voiceBuf.length > 200) voiceBuf = voiceBuf.slice(-100);
         };
         recog.onend = () => {
           // If we have permission, restart immediately. 
@@ -1921,6 +2197,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (listening && permissionStatus === 'granted') {
              // Reset internal state to avoid stuck buffers
              voiceBuf = ''; 
+             try { console.log('SpeechRecognition end, restarting'); } catch {}
              setTimeout(() => { 
                 try { recog.start(); } catch (err) { console.log('Resume error', err); } 
              }, 200); // Shorter restart delay
