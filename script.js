@@ -386,7 +386,7 @@ function showModal(title, html) {
   const noClose = (lower === 'help' || lower === 'calendar' || lower === 'highlights');
   if (closeBtn) closeBtn.style.display = noClose ? 'none' : 'inline-block';
   if (lower === 'help') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
-  else if (lower === 'calendar') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
+  else if (lower === 'calendar' || lower === 'schedule') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
   else { c.style.overflow = 'auto'; c.style.minHeight = '0'; }
   t.textContent = (title || '').toUpperCase();
   c.innerHTML = html;
@@ -417,7 +417,7 @@ function showModalAuto(title, html, ms = 5000) {
   if (closeBtn) closeBtn.style.display = 'none';
   const lower = String(title || '').toLowerCase();
   if (lower === 'help') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
-  else if (lower === 'calendar') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
+  else if (lower === 'calendar' || lower === 'schedule') { c.style.overflow = 'hidden'; c.style.minHeight = '0'; }
   else { c.style.overflow = 'auto'; c.style.minHeight = '0'; }
   t.textContent = (title || '').toUpperCase();
   c.innerHTML = html;
@@ -625,7 +625,8 @@ async function executeIntent(intent, text) {
   if (intent === 'close') { closeAllPopups(); return true; }
   if (intent === 'next' && !fuzzyHasAnyKeyword(t, ['previous','back','prev'])) {
     try {
-      const isModalOpen = document.getElementById('modal-overlay').style.display === 'flex';
+      const overlayEl = document.getElementById('modal-overlay');
+      const isModalOpen = !!(overlayEl && (overlayEl.style.display !== 'none' && window.getComputedStyle(overlayEl).display !== 'none'));
       if (isModalOpen) {
         if (advanceModalPage(1)) { /* paged */ } else { return !!showOverlay('Navigation', '<div>No more pages</div>'); }
       } else {
@@ -637,7 +638,8 @@ async function executeIntent(intent, text) {
   }
   if (intent === 'previous') {
     try {
-      const isModalOpen = document.getElementById('modal-overlay').style.display === 'flex';
+      const overlayEl = document.getElementById('modal-overlay');
+      const isModalOpen = !!(overlayEl && (overlayEl.style.display !== 'none' && window.getComputedStyle(overlayEl).display !== 'none'));
       if (isModalOpen) {
         if (advanceModalPage(-1)) { /* paged */ } else { return !!showOverlay('Navigation', '<div>No previous pages</div>'); }
       } else {
@@ -1415,7 +1417,8 @@ async function handleVoice(text) {
 
   if (fuzzyHasAnyKeyword(t, ['next', 'next page']) && !fuzzyHasAnyKeyword(t, ['previous', 'back', 'prev'])) { 
     try { 
-      const isModalOpen = document.getElementById('modal-overlay').style.display === 'flex';
+      const overlayEl = document.getElementById('modal-overlay');
+      const isModalOpen = !!(overlayEl && (overlayEl.style.display !== 'none' && window.getComputedStyle(overlayEl).display !== 'none'));
       
       if (isModalOpen) {
         // If modal is open, ONLY try to page the modal.
@@ -1436,7 +1439,8 @@ async function handleVoice(text) {
 
   if (fuzzyHasAnyKeyword(t, ['previous', 'previous page', 'go back', 'back', 'prev'])) { 
     try { 
-      const isModalOpen = document.getElementById('modal-overlay').style.display === 'flex';
+      const overlayEl = document.getElementById('modal-overlay');
+      const isModalOpen = !!(overlayEl && (overlayEl.style.display !== 'none' && window.getComputedStyle(overlayEl).display !== 'none'));
       
       if (isModalOpen) {
         if (advanceModalPage(-1)) {
