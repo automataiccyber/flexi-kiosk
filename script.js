@@ -2044,6 +2044,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     setInterval(updateTime, 1000);
     updateTime();
     (async () => { const st = await checkFirestoreConnectivity(); updateDbIndicator(st.ok ? 'Connected to Firestore' : `Firestore error: ${st.error}`, st.ok); })();
+    
+    // PIR Sensor Listener
+    try {
+      const db = getFirestoreDB();
+      if (db) {
+        db.collection('sensors').doc('pir').onSnapshot(doc => {
+          if (doc.exists) {
+            const data = doc.data();
+            // motion: true -> Turn ON (hidePowerOff)
+            // motion: false -> Turn OFF (showPowerOff)
+            if (data && typeof data.motion === 'boolean') {
+              if (data.motion) {
+                hidePowerOff();
+              } else {
+                showPowerOff();
+              }
+            }
+          }
+        }, err => {
+          console.warn('PIR listener error', err);
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to attach PIR listener', e);
+    }
+
     const closeBtn = document.getElementById('voice-close');
     if (closeBtn) closeBtn.addEventListener('click', hideOverlay);
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2085,11 +2111,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         recog.continuous = true;
         recog.interimResults = true;
         recog.maxAlternatives = 3;
-        try { recog.onstart = () => { try { console.log('SpeechRecognition start'); } catch {} }; } catch {}
-        try { recog.onsoundstart = () => { try { console.log('Sound start'); } catch {} }; } catch {}
-        try { recog.onsoundend = () => { try { console.log('Sound end'); } catch {} }; } catch {}
-        try { recog.onspeechstart = () => { try { console.log('Speech start'); } catch {} }; } catch {}
-        try { recog.onspeechend = () => { try { console.log('Speech end'); } catch {} }; } catch {}
+        // try { recog.onstart = () => { try { console.log('SpeechRecognition start'); } catch {} }; } catch {}
+        // try { recog.onsoundstart = () => { try { console.log('Sound start'); } catch {} }; } catch {}
+        // try { recog.onsoundend = () => { try { console.log('Sound end'); } catch {} }; } catch {}
+        // try { recog.onspeechstart = () => { try { console.log('Speech start'); } catch {} }; } catch {}
+        // try { recog.onspeechend = () => { try { console.log('Speech end'); } catch {} }; } catch {}
     // If Whisper is available, prefer it
     const hasWhisperSupport = () => {
       try { return !!(window.WhisperWeb && typeof WhisperWeb.init === 'function' && typeof WhisperWeb.transcribe === 'function'); } catch { return false; }
@@ -2201,10 +2227,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (listening && permissionStatus === 'granted') {
              // Reset internal state to avoid stuck buffers
              voiceBuf = ''; 
-             try { console.log('SpeechRecognition end, restarting'); } catch {}
+             // try { console.log('SpeechRecognition end, restarting'); } catch {}
              setTimeout(() => { 
                 try { recog.start(); } catch (err) { console.log('Resume error', err); } 
-             }, 200); // Shorter restart delay
+             }, 10); // Shorter restart delay
           }
         };
         recog.onerror = (e) => { 
