@@ -66,8 +66,20 @@ async function fetchAnnouncements(limitCount = 3) {
     if (!db) throw new Error('no-db');
     const snap = await db.collection('announcements').orderBy('createdAt', 'desc').limit(limitCount).get();
     const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (!rows || rows.length === 0) throw new Error('empty');
-    return rows;
+    
+    // Process announcements: Calculate timestamp, filter expired, and sort
+    const nowTs = Date.now();
+    const processed = rows.map(a => {
+        const dstr = (a.date || '').replace(/\,/g,'');
+        const tstr = a.time ? ('T' + a.time) : '';
+        const dt = new Date(dstr + (tstr || 'T00:00:00'));
+        return { ...a, _ts: dt.getTime() || 0, pinned: !!a.pinned };
+    })
+    .filter(a => a._ts > nowTs)
+    .sort((x,y) => (y.pinned - x.pinned) || (x._ts - y._ts));
+
+    if (!processed || processed.length === 0) throw new Error('empty');
+    return processed;
   } catch (e) {
     if (e.message !== 'empty') console.error('fetchAnnouncements error:', e);
     return [];
@@ -689,20 +701,9 @@ async function executeIntent(intent, text) {
   if (intent === 'highlights') {
     closeAllPopups();
     showModalNoHeader('<div>Loading Highlights...</div>', 600000);
-    const hls = (await fetchHighlights(8)).slice(0, 8);
-    const html = `
-      <div style="display:flex; flex-direction:column; height:100%;">
-        <div style="display:grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); gap: 12px; flex:1 1 auto;">
-          ${hls.map(h => `
-            <div style="padding: 0; display:flex; align-items:center; justify-content:center; background: transparent;">
-              <div style="width:100%; height:100%; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
+    const hls = await fetchHighlights(50);
+    showHighlightsPaged(hls, 0, null);
     logInfo('voice_command', { command: 'highlights' });
-    showModal('HIGHLIGHTS', html || '<div>No highlights available</div>');
     return true;
   }
   return false;
@@ -818,7 +819,6 @@ function renderAnnouncementsPage(anns, pageIdx, prevIdx) {
       <div class="text" style="overflow:hidden;">
         <h3>${a.title}</h3>
         ${a.description ? `<p>${a.description}</p>` : ''}
-        <p style="font-size:0.9rem; color:#334155;">${a.time} • ${a.date}</p>
       </div>
     </div>
   `).join('');
@@ -854,6 +854,19 @@ function advanceModalPage(step = 1) {
     window._annPageIndex = next;
     const html = renderAnnouncementsPage(window._annFlat, next, prev);
     showModalAuto('Announcements', html, 600000);
+    return true;
+  }
+  if (window._modalPager === 'highlights' && Array.isArray(window._highlightsFlat)) {
+    const _pages = getHighlightPages(window._highlightsFlat);
+    const totalPages = _pages.length;
+    if (totalPages <= 1) return false;
+    const prev = Math.max(0, Math.min(window._highlightsPageIndex || 0, totalPages - 1));
+    if (step > 0 && prev >= totalPages - 1) return false;
+    if (step < 0 && prev <= 0) return false;
+    const next = prev + step;
+    window._highlightsPageIndex = next;
+    const html = renderHighlightsPage(window._highlightsFlat, next, prev);
+    showModalAuto('HIGHLIGHTS', html, 600000);
     return true;
   }
   if (window._modalPager === 'events' && Array.isArray(window._eventsFlat)) {
@@ -957,7 +970,7 @@ function renderEventsPage(evs, pageIdx, prevIdx) {
     const span = '';
     return `
       <div style="display:flex; flex-direction:column; gap:6px; padding:6px; ${span}">
-        <div style="flex:1; width:100%; background-image:url('${e.image}'); background-size:cover; background-position:center; border-radius:4px;"></div>
+        <div style="flex:1; width:100%; background-image:url('${e.image}'); background-size:100% 100%; background-position:center; border-radius:4px;"></div>
         <div style="font-weight:bold; text-align:center;">${e.title}</div>
         <div style="color:#4a5568; font-size:0.85rem; text-align:center;">${e.date}</div>
       </div>
@@ -983,6 +996,62 @@ function showEventsPaged(evs, pageIdx = 0, prevIdx = null) {
   const html = renderEventsPage(window._eventsFlat, pageIdx, prevIdx);
   showModalAuto('UPCOMING EVENTS', html, 600000);
 }
+
+function getHighlightPages(list) {
+  const arr = Array.isArray(list) ? list.slice() : [];
+  const pages = [];
+  let i = 0;
+  while (i < arr.length) {
+    const remain = arr.length - i;
+    if (remain >= 2) {
+      pages.push(arr.slice(i, i + 2));
+      i += 2;
+    } else {
+      pages.push(arr.slice(i, i + 1));
+      i += 1;
+    }
+  }
+  if (!pages.length) pages.push([]);
+  return pages;
+}
+
+function renderHighlightsPage(hls, pageIdx, prevIdx) {
+  const pages = getHighlightPages(hls);
+  const cur = pages[pageIdx] || [];
+  const dir = prevIdx == null ? '0px' : (pageIdx > prevIdx ? '20px' : '-20px');
+  const dots = pages.map((_, i) => `<span class="dot ${i===pageIdx?'active':''}" style="width:8px;height:8px;border-radius:50%;background:#000;opacity:${i===pageIdx?1:0.4};"></span>`).join('');
+  const count = cur.length;
+  let gridCols = 1;
+  let gridRowsCss = `1fr`;
+  if (count === 2) { gridCols = 1; gridRowsCss = `repeat(2, 1fr)`; }
+  
+  const items = cur.map((h, i) => {
+    return `
+      <div style="display:flex; flex-direction:column; gap:6px; padding:6px;">
+        <div style="flex:1; width:100%; background-image:url('${h.image}'); background-size:100% 100%; background-position:center; border-radius:4px;"></div>
+      </div>
+    `;
+  }).join('');
+  return `
+    <div style="display:flex; flex-direction:column; height:100%;">
+      <div style="flex:1; animation: hlSlideIn 240ms ease; will-change: transform, opacity; display:grid; grid-template-columns: repeat(${gridCols}, 1fr); grid-template-rows: ${gridRowsCss}; gap: 12px;">
+        ${items || '<div style="grid-column: 1 / -1; display:flex; align-items:center; justify-content:center; color:#4a5568;">No highlights</div>'}
+      </div>
+      ${pages.length>1 ? `<div class="dots-wrap" style="display:flex; gap:6px; justify-content:center; padding:12px 0; flex:0 0 auto;">${dots}</div>` : ''}
+      <style>
+        @keyframes hlSlideIn { from { transform: translateX(${dir}); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+      </style>
+    </div>
+  `;
+}
+
+function showHighlightsPaged(hls, pageIdx = 0, prevIdx = null) {
+  window._modalPager = 'highlights';
+  window._highlightsFlat = hls || [];
+  window._highlightsPageIndex = pageIdx;
+  const html = renderHighlightsPage(window._highlightsFlat, pageIdx, prevIdx);
+  showModalAuto('HIGHLIGHTS', html, 600000);
+}
 function renderAnnListCompact(anns) {
   const items = anns.map(a => `
     <div class="announcement-item" style="flex:1; min-height:0; display:flex; align-items:center; gap:10px; padding:8px;">
@@ -990,7 +1059,7 @@ function renderAnnListCompact(anns) {
       <div class="text" style="overflow:hidden; display:flex; flex-direction:column;">
         <h3 style="margin:0;">${a.title}</h3>
         ${a.description ? `<p style="margin:2px 0 0;">${a.description}</p>` : ''}
-        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">${a.time || ''} ${a.time ? '•' : ''} ${a.date || ''}</p>
+        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">Expires: ${a.time || ''} ${a.time ? '•' : ''} ${a.date || ''}</p>
       </div>
     </div>
   `).join('');
@@ -999,7 +1068,7 @@ function renderAnnListCompact(anns) {
 function renderEvtListCompact(evs) {
   const items = evs.map(e => `
     <div style="flex:1; min-height:0; display:flex; flex-direction:column; gap:6px; padding:6px;">
-      <div style="flex:1; width:100%; background-image:url('${e.image}'); background-size:cover; background-position:center; border-radius:4px;"></div>
+      <div style="flex:1; width:100%; background-image:url('${e.image}'); background-size:100% 100%; background-position:center; border-radius:4px;"></div>
       <div style="font-weight:bold; text-align:center;">${e.title}</div>
       <div style="color:#4a5568; font-size:0.85rem; text-align:center;">${e.date}</div>
     </div>
@@ -1013,7 +1082,7 @@ function renderAnnItemCompact(a) {
       <div class="text" style="overflow:hidden; display:flex; flex-direction:column;">
         <h3 style="margin:0;">${a.title}</h3>
         ${a.description ? `<p style="margin:2px 0 0;">${a.description}</p>` : ''}
-        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">${a.time || ''} ${a.time ? '•' : ''} ${a.date || ''}</p>
+        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">Expires: ${a.time || ''} ${a.time ? '•' : ''} ${a.date || ''}</p>
       </div>
     </div>
   `;
@@ -1021,7 +1090,7 @@ function renderAnnItemCompact(a) {
 function renderEvtItemCompact(e) {
   return `
     <div style="flex:1; min-height:0; display:flex; flex-direction:column; gap:6px; padding:6px;">
-      <div style="flex:1; width:100%; background-image:url('${e.image}'); background-size:cover; background-position:center; border-radius:4px;"></div>
+      <div style="flex:1; width:100%; background-image:url('${e.image}'); background-size:100% 100%; background-position:center; border-radius:4px;"></div>
       <div style="font-weight:bold; text-align:center;">${e.title}</div>
       <div style="color:#4a5568; font-size:0.85rem; text-align:center;">${e.date}</div>
     </div>
@@ -1070,7 +1139,7 @@ function renderCombinedPage(page, pageIdx, totalPages, prevIdx) {
     else if (count === 4) { gridCols = 2; gridRowsCss = `repeat(2, 1fr)`; }
     const items = list.map((ev) => `
       <div style="display:flex; flex-direction:column; gap:6px; padding:6px;">
-        <div style="flex:1; width:100%; background-image:url('${ev.image}'); background-size:cover; background-position:center; border-radius:4px;"></div>
+        <div style="flex:1; width:100%; background-image:url('${ev.image}'); background-size:100% 100%; background-position:center; border-radius:4px;"></div>
         <div style="font-weight:bold; text-align:center;">${ev.title}</div>
         <div style="color:#4a5568; font-size:0.85rem; text-align:center;">${ev.date}</div>
       </div>
@@ -1563,7 +1632,7 @@ async function handleVoice(text) {
     const opts = { year: 'numeric', month: 'short', day: 'numeric' };
     const titleDate = calRange.from.toLocaleDateString('en-US', opts);
     if (fuzzyHasKeyword(t, 'schedule')) {
-      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${(evs.length?evs:[]).map(e => `<div>${e.title} — ${e.date}</div>`).join('') || '<div>No events</div>'}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${(evs.length?evs:[]).map(e => `<div>${e.title} — ${e.date}</div>`).join('') || '<div>No events</div>'}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — Expires: ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
       logInfo('voice_command', { command: 'calendar_schedule' });
       return showModal(`Calendar — ${titleDate}`, html);
     }
@@ -1573,7 +1642,7 @@ async function handleVoice(text) {
       return showModal(`Calendar — ${titleDate}`, html);
     }
     if (fuzzyHasAnyKeyword(t, ['announcement','announcements'])) {
-      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — Expires: ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
       logInfo('voice_command', { command: 'calendar_announcements_on' });
       return showModal(`Calendar — ${titleDate}`, html);
     }
@@ -1611,20 +1680,10 @@ async function handleVoice(text) {
   if (fuzzyHasKeyword(t, 'highlight')) {
     closeAllPopups();
     showModalNoHeader('<div>Loading Highlights...</div>', 600000);
-    const hls = (await fetchHighlights(8)).slice(0, 8);
-    const html = `
-      <div style="display:flex; flex-direction:column; height:100%;">
-        <div style="display:grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); gap: 12px; flex:1 1 auto;">
-          ${hls.map(h => `
-            <div style="padding: 0; display:flex; align-items:center; justify-content:center; background: transparent;">
-              <div style="width:100%; height:100%; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
+    const hls = await fetchHighlights(50);
+    showHighlightsPaged(hls, 0, null);
     logInfo('voice_command', { command: 'highlights' });
-    return showModalAuto('HIGHLIGHTS', html || '<div>No highlights available</div>', 5000);
+    return;
   }
 
   if (t.includes('qr')) {
@@ -1659,16 +1718,20 @@ async function renderDashboard() {
   const annContainer = document.getElementById('announcements-list');
   if (annContainer && db) {
     try {
-      db.collection('announcements').orderBy('createdAt','desc').limit(50).onSnapshot((snap) => {
-        const annsRaw = snap.docs.map(d => d.data());
-        const parseAnn = (a) => {
-          const dstr = (a.date || '').replace(/\,/g,'');
-          const dt = new Date(dstr + ' ' + (a.time || ''));
-          return { ...a, _ts: dt.getTime() || 0, pinned: !!a.pinned };
-        };
-        const anns = annsRaw.map(parseAnn)
+      let cachedAnns = [];
+
+      // Update function to refresh UI and delete expired items
+      const updateAnnouncements = () => {
+        const nowTs = Date.now();
+        
+        // Removed auto-delete logic per user request. 
+        // Announcements are kept in DB but filtered from dashboard.
+        
+        const anns = cachedAnns
+          .filter(a => a._ts > nowTs)
           .sort((x,y) => (y.pinned - x.pinned) || (x._ts - y._ts))
-          .slice(0, 50); 
+          .slice(0, 50);
+
         annContainer.innerHTML = anns.map(a => `
           <div class="announcement-item">
             <div class="icon">${a.icon || '📢'}</div>
@@ -1678,7 +1741,28 @@ async function renderDashboard() {
             </div>
           </div>
         `).join('');
+      };
+
+      db.collection('announcements').orderBy('createdAt','desc').limit(50).onSnapshot((snap) => {
+        const annsRaw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const parseAnn = (a) => {
+          const dstr = (a.date || '').replace(/\,/g,'');
+          // Use ISO separator T for more robust parsing if time exists, otherwise midnight
+          const tstr = a.time ? ('T' + a.time) : ''; 
+          // If no time, we might assume end of day? User requirement says "date and time".
+          // If time is missing, let's treat it as valid for the whole day (or invalid if strictly required).
+          // Assuming midnight local time if no time provided, which means it expires at start of day? 
+          // Let's stick to existing behavior: Date + Time string.
+          const dt = new Date(dstr + (tstr || 'T00:00:00'));
+          return { ...a, _ts: dt.getTime() || 0, pinned: !!a.pinned };
+        };
+        cachedAnns = annsRaw.map(parseAnn);
+        updateAnnouncements();
       });
+
+      // Periodically check for expiration every 10 seconds
+      setInterval(updateAnnouncements, 10000);
+
     } catch {}
   }
 
@@ -1895,20 +1979,25 @@ async function renderDashboard() {
 
 // --- Admin Render Logic ---
 function renderAdminAnnouncementsList(list) {
-  return list.map(a => `
-    <div class="announcement-item-admin">
+  return list.map(a => {
+    const dstr = (a.date || '').replace(/\,/g,'');
+    const dt = new Date(dstr + ' ' + (a.time || ''));
+    const isExpired = (dt.getTime() || 0) < Date.now();
+    
+    return `
+    <div class="announcement-item-admin" style="${isExpired ? 'opacity: 0.6; background: #f1f5f9;' : ''}">
        <div class="icon">${a.icon || '📢'}</div>
        <div class="text">
-          <h3>${a.title}</h3>
+          <h3>${a.title} ${isExpired ? '<span style="color:red; font-size:0.8rem; border:1px solid red; border-radius:4px; padding:0 4px;">EXPIRED</span>' : ''}</h3>
           ${a.description ? `<p>${a.description}</p>` : ''}
-          <p style="font-size:0.9rem; color:#334155;">${a.time} • ${a.date}</p>
+          <p style="font-size:0.9rem; color:#334155;">Expires: ${a.time} • ${a.date}</p>
        </div>
        <div class="admin-actions">
          <button class="btn-action ${a.pinned ? 'pinned' : ''}" data-action="pin" data-id="${a.id}" data-pinned="${!!a.pinned}">${a.pinned ? 'Unpin' : 'Pin'}</button>
          <button class="btn-save" data-action="del" data-id="${a.id}">Delete</button>
        </div>
     </div>
-  `).join('');
+  `}).join('');
 }
 
 function renderAdminEventsList(list) {
@@ -2025,10 +2114,9 @@ async function renderAdmin() {
       const cnt = (hls || []).length;
       highlightsGrid.innerHTML = (hls || []).map(h => `
         <div class="list-item">
-           <div style="width:100%; height:160px; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
+           <div style="width:100%; height:160px; background-image:url('${h.image}'); background-size:100% 100%; background-position:center;"></div>
            <div style="display:flex; gap:8px; margin-top:6px; justify-content:center;">
-             <button class="btn-save" data-action="replace" data-id="${h.id}">Replace</button>
-             <button class="btn-save" style="background:#dc3545; ${cnt>8 ? '' : 'display:none;'}" data-action="delete" data-id="${h.id}">Delete</button>
+             <button class="btn-save" style="background:#dc3545;" data-action="delete" data-id="${h.id}">Delete</button>
            </div>
         </div>
       `).join('');
@@ -2261,6 +2349,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (mclose) mclose.addEventListener('click', hideModal);
     const annHead = document.getElementById('announcements-header');
     const eventsHead = document.getElementById('events-header');
+    const highlightsHead = document.getElementById('highlights-header');
     const teachersHead = document.getElementById('teachers-header');
     const calHead = document.getElementById('calendar-header');
     if (annHead) annHead.addEventListener('click', async () => {
@@ -2270,6 +2359,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (eventsHead) eventsHead.addEventListener('click', async () => {
       const evs = await fetchEvents(200);
       showEventsPaged(evs, 0, null);
+    });
+    if (highlightsHead) highlightsHead.addEventListener('click', async () => {
+      const hls = await fetchHighlights(50);
+      showHighlightsPaged(hls, 0, null);
     });
     if (teachersHead) teachersHead.addEventListener('click', async () => {
       const tchs = await fetchTeachers(200);
@@ -2287,7 +2380,92 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (document.getElementById('admin-view')) {
     renderAdmin();
 
-    // Announcements
+    window._pendingAnns = window._pendingAnns || { adds: [], deletes: new Set(), pins: new Map() };
+    window._pendingEvents = window._pendingEvents || { adds: [], deletes: new Set() };
+    window._pendingHighlights = window._pendingHighlights || { adds: [], deletes: new Set() };
+
+    const isPendingId = (id) => typeof id === 'string' && id.startsWith('pending:');
+
+    const refreshAnnouncementsAdminList = async () => {
+      const base = await fetchAnnouncements(50);
+      const filtered = base.map(a => {
+        if (window._pendingAnns.deletes.has(a.id)) return null;
+        const pinned = window._pendingAnns.pins.has(a.id) ? !!window._pendingAnns.pins.get(a.id) : !!a.pinned;
+        return { ...a, pinned };
+      }).filter(Boolean);
+      const pend = (window._pendingAnns.adds || []).map((doc, i) => ({ ...doc, id: `pending:ann:${i}`, pinned: !!doc.pinned }));
+      const finalList = filtered.concat(pend);
+      const container = document.getElementById('announcements-admin-list');
+      if (container) container.innerHTML = renderAdminAnnouncementsList(finalList);
+    };
+
+    const refreshEventsAdminList = async () => {
+      const base = await fetchEvents(50);
+      const filtered = base.filter(e => !window._pendingEvents.deletes.has(e.id));
+      const pend = (window._pendingEvents.adds || []).map((doc, i) => ({ ...doc, id: `pending:evt:${i}` }));
+      const finalList = filtered.concat(pend);
+      const container = document.getElementById('events-admin-list');
+      if (container) container.innerHTML = renderAdminEventsList(finalList);
+    };
+
+    const refreshHighlightsAdminList = async () => {
+      const base = await fetchHighlights(50);
+      const filtered = base.filter(h => !window._pendingHighlights.deletes.has(h.id));
+      const pend = (window._pendingHighlights.adds || []).map((doc, i) => ({ ...doc, id: `pending:hl:${i}` }));
+      const finalList = filtered.concat(pend);
+      const container = document.getElementById('highlights-admin-list');
+      if (container) {
+        container.innerHTML = (finalList || []).map(h => `
+          <div class="list-item">
+             <div style="width:100%; height:160px; background-image:url('${h.image}'); background-size:100% 100%; background-position:center;"></div>
+             <div style="display:flex; gap:8px; margin-top:6px; justify-content:center;">
+               <button class="btn-save" style="background:#dc3545;" data-action="delete" data-id="${h.id}">Delete</button>
+             </div>
+          </div>
+        `).join('');
+      }
+    };
+
+    const commitAnnouncements = async () => {
+      const db = getFirestoreDB();
+      for (const doc of (window._pendingAnns.adds || [])) {
+        if (db) { try { await db.collection('announcements').add({ ...doc }); } catch {} }
+      }
+      for (const id of (window._pendingAnns.deletes || new Set())) {
+        if (!isPendingId(id)) { await deleteAnnouncement(id); }
+      }
+      for (const [id, pinned] of (window._pendingAnns.pins || new Map())) {
+        if (!isPendingId(id)) { await pinAnnouncement(id, !!pinned); }
+      }
+      window._pendingAnns = { adds: [], deletes: new Set(), pins: new Map() };
+      await refreshAnnouncementsAdminList();
+      alert('Changes saved.');
+    };
+
+    const commitEvents = async () => {
+      for (const doc of (window._pendingEvents.adds || [])) {
+        await addEvent(doc.title, doc.date, doc.image);
+      }
+      for (const id of (window._pendingEvents.deletes || new Set())) {
+        if (!isPendingId(id)) { await deleteEvent(id); }
+      }
+      window._pendingEvents = { adds: [], deletes: new Set() };
+      await refreshEventsAdminList();
+      alert('Changes saved.');
+    };
+
+    const commitHighlights = async () => {
+      for (const doc of (window._pendingHighlights.adds || [])) {
+        await addHighlight(doc.image);
+      }
+      for (const id of (window._pendingHighlights.deletes || new Set())) {
+        if (!isPendingId(id)) { await deleteHighlight(id); }
+      }
+      window._pendingHighlights = { adds: [], deletes: new Set() };
+      await refreshHighlightsAdminList();
+      alert('Changes saved.');
+    };
+
     const annAddBtn = document.getElementById('ann-add-btn');
     if (annAddBtn) annAddBtn.addEventListener('click', async () => {
       const title = document.getElementById('ann-title').value.trim();
@@ -2296,33 +2474,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       const time = document.getElementById('ann-time').value.trim();
       const icon = document.getElementById('ann-icon').value;
       if (!title || !date || !time) return;
-      
-      const db = getFirestoreDB();
       const doc = { title, description: desc, date, time, icon, createdAt: new Date().toISOString(), pinned: false };
-      if (db) {
-        try { await db.collection('announcements').add(doc); } catch {}
-      }
-      await logInfo('announcement_add', { title, date, time });
-
-      if (document.getElementById('announcements-admin-list')) {
-        const allAnns = await fetchAnnouncements(50);
-        document.getElementById('announcements-admin-list').innerHTML = renderAdminAnnouncementsList(allAnns);
-      }
+      window._pendingAnns.adds.push(doc);
+      await refreshAnnouncementsAdminList();
       document.getElementById('ann-title').value = '';
       if(document.getElementById('ann-desc')) document.getElementById('ann-desc').value = '';
       document.getElementById('ann-date').value = '';
       document.getElementById('ann-time').value = '';
     });
     
+    
     const annSaveBtn = document.getElementById('ann-save-btn');
     if (annSaveBtn) annSaveBtn.addEventListener('click', async () => {
-       const allAnns = await fetchAnnouncements(50);
-       const container = document.getElementById('announcements-admin-list');
-       if(container) container.innerHTML = renderAdminAnnouncementsList(allAnns);
-       alert('Changes saved/synced with database.');
+       await commitAnnouncements();
     });
     
-    // Admin announcement actions (pin/delete)
     const adminList = document.getElementById('announcements-admin-list');
     if (adminList) {
       adminList.addEventListener('click', async (e) => {
@@ -2332,15 +2498,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         const act = btn.dataset.action;
         const isPinned = btn.dataset.pinned === 'true';
         if (!id || !act) return;
-        if (act === 'del') await deleteAnnouncement(id);
-        if (act === 'pin') await pinAnnouncement(id, !isPinned);
-        
-        const allAnns = await fetchAnnouncements(50);
-        adminList.innerHTML = renderAdminAnnouncementsList(allAnns);
+        if (act === 'del') {
+          if (isPendingId(id)) {
+            const m = id.match(/^pending:ann:(\d+)/);
+            const idx = m ? parseInt(m[1], 10) : -1;
+            if (idx >= 0) window._pendingAnns.adds.splice(idx, 1);
+          } else {
+            window._pendingAnns.deletes.add(id);
+          }
+        }
+        if (act === 'pin') {
+          if (isPendingId(id)) {
+            const m = id.match(/^pending:ann:(\d+)/);
+            const idx = m ? parseInt(m[1], 10) : -1;
+            if (idx >= 0 && window._pendingAnns.adds[idx]) {
+              window._pendingAnns.adds[idx].pinned = !isPinned;
+            }
+          } else {
+            window._pendingAnns.pins.set(id, !isPinned);
+          }
+        }
+        await refreshAnnouncementsAdminList();
       });
     }
 
-    // Events
     const eventAddBtn = document.getElementById('event-add-btn');
     if (eventAddBtn) eventAddBtn.addEventListener('click', async () => {
       const title = document.getElementById('event-title').value.trim();
@@ -2350,11 +2531,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!title || !date || !file) return;
       const url = await compressImageToDataURL(file);
       if (!url) return;
-      await addEvent(title, date, url);
-      if (document.getElementById('events-admin-list')) {
-        const evsAll = await fetchEvents(50);
-        document.getElementById('events-admin-list').innerHTML = renderAdminEventsList(evsAll);
-      }
+      window._pendingEvents.adds.push({ title, date, image: url });
+      await refreshEventsAdminList();
       document.getElementById('event-title').value = '';
       document.getElementById('event-date').value = '';
       if (fileEl) fileEl.value = '';
@@ -2362,10 +2540,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const eventsSaveBtn = document.getElementById('events-save-btn');
     if (eventsSaveBtn) eventsSaveBtn.addEventListener('click', async () => {
-       const evsAll = await fetchEvents(50);
-       const container = document.getElementById('events-admin-list');
-       if(container) container.innerHTML = renderAdminEventsList(evsAll);
-       alert('Changes saved/synced with database.');
+       if (document.getElementById('events-admin-list')) {
+         await commitEvents();
+       } else if (document.getElementById('highlights-admin-list')) {
+         await commitHighlights();
+       }
     });
 
     const eventsList = document.getElementById('events-admin-list');
@@ -2376,45 +2555,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         const id = btn.dataset.id;
         const act = btn.dataset.action;
         if (!id || !act) return;
-        if (act === 'delete') await deleteEvent(id);
-        
-        const evsAll = await fetchEvents(50);
-        eventsList.innerHTML = renderAdminEventsList(evsAll);
+        if (act === 'delete') {
+          if (isPendingId(id)) {
+            const m = id.match(/^pending:evt:(\d+)/);
+            const idx = m ? parseInt(m[1], 10) : -1;
+            if (idx >= 0) window._pendingEvents.adds.splice(idx, 1);
+          } else {
+            window._pendingEvents.deletes.add(id);
+          }
+        }
+        await refreshEventsAdminList();
       });
     }
 
-    // Highlights
     const highlightAddBtn = document.getElementById('highlight-add-btn');
     if (highlightAddBtn) highlightAddBtn.addEventListener('click', async () => {
       const fileEl = document.getElementById('highlight-img-upload');
       const file = fileEl && fileEl.files && fileEl.files[0];
       if (!file) return;
       const existing = await fetchHighlights(50);
-      if ((existing || []).length >= 8) {
-        alert('Only 8 highlights allowed. Use Replace to update or Delete extras.');
+      const effectiveCount = (existing || []).filter(h => !window._pendingHighlights.deletes.has(h.id)).length + (window._pendingHighlights.adds || []).length;
+      if (effectiveCount >= 8) {
+        alert('Only 8 highlights allowed. Please delete some to add new ones.');
         if (fileEl) fileEl.value = '';
         return;
       }
       const url = await compressImageToDataURL(file);
       if (!url) return;
-      await addHighlight(url);
-      if (document.getElementById('highlights-admin-list')) {
-        const hls = await fetchHighlights(50);
-        const cnt = (hls || []).length;
-        document.getElementById('highlights-admin-list').innerHTML = (hls || []).map(h => `
-          <div class="list-item">
-             <div style="width:100%; height:160px; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
-             <div style="display:flex; gap:8px; margin-top:6px; justify-content:center;">
-               <button class="btn-save" data-action="replace" data-id="${h.id}">Replace</button>
-               <button class="btn-save" style="background:#dc3545; ${cnt>8 ? '' : 'display:none;'}" data-action="delete" data-id="${h.id}">Delete</button>
-             </div>
-          </div>
-        `).join('');
-      }
+      window._pendingHighlights.adds.push({ image: url });
+      await refreshHighlightsAdminList();
       if (fileEl) fileEl.value = '';
     });
 
-    // Highlights list actions (replace/delete)
     const highlightsList = document.getElementById('highlights-admin-list');
     if (highlightsList) {
       highlightsList.addEventListener('click', async (e) => {
@@ -2424,45 +2596,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const act = btn.dataset.action;
         if (!id || !act) return;
         if (act === 'delete') {
-          await deleteHighlight(id);
-        }
-        if (act === 'replace') {
-          const picker = document.createElement('input');
-          picker.type = 'file';
-          picker.accept = 'image/*';
-          picker.onchange = async () => {
-            const file = picker.files && picker.files[0];
-            if (!file) return;
-            const url = await compressImageToDataURL(file);
-            if (!url) return;
-            await replaceHighlight(id, url);
-            const hls = await fetchHighlights(50);
-            const cnt = (hls || []).length;
-            highlightsList.innerHTML = (hls || []).map(h => `
-              <div class="list-item">
-                 <div style="width:100%; height:160px; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
-                 <div style="display:flex; gap:8px; margin-top:6px; justify-content:center;">
-                   <button class="btn-save" data-action="replace" data-id="${h.id}">Replace</button>
-                   <button class="btn-save" style="background:#dc3545; ${cnt>8 ? '' : 'display:none;'}" data-action="delete" data-id="${h.id}">Delete</button>
-                 </div>
-              </div>
-            `).join('');
-          };
-          picker.click();
-        }
-        // After delete, refresh list
-        if (act === 'delete') {
-          const hls = await fetchHighlights(50);
-          const cnt = (hls || []).length;
-          highlightsList.innerHTML = (hls || []).map(h => `
-            <div class="list-item">
-               <div style="width:100%; height:160px; background-image:url('${h.image}'); background-size:cover; background-position:center;"></div>
-               <div style="display:flex; gap:8px; margin-top:6px; justify-content:center;">
-                 <button class="btn-save" data-action="replace" data-id="${h.id}">Replace</button>
-                 <button class="btn-save" style="background:#dc3545; ${cnt>8 ? '' : 'display:none;'}" data-action="delete" data-id="${h.id}">Delete</button>
-               </div>
-            </div>
-          `).join('');
+          if (isPendingId(id)) {
+            const m = id.match(/^pending:hl:(\d+)/);
+            const idx = m ? parseInt(m[1], 10) : -1;
+            if (idx >= 0) window._pendingHighlights.adds.splice(idx, 1);
+          } else {
+            window._pendingHighlights.deletes.add(id);
+          }
+          await refreshHighlightsAdminList();
         }
       });
     }
