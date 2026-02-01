@@ -19,33 +19,38 @@
     </header>
     <main class="content-area">
       <section id="facility" class="admin-section active">
-        <div class="facility-grid-container">
-          <!-- Left Column -->
-          <div class="facility-col1">
-            <div class="form-group"><label>Clinic</label>
-              <select id="clinic-status"><option>Open</option><option>On Break</option><option>Close</option></select>
-            </div>
-            
-            <div class="form-group"><label>Admin</label>
-              <select id="admin-status"><option>Open</option><option>On Break</option><option>Close</option></select>
-            </div>
-            <div class="form-group"><label>Proware</label>
-               <select id="proware-status"><option>Open</option><option>On Break</option><option>Close</option></select>
-             </div>
+        <div class="ann-row h-101">
+          <div class="label-input">
+            <label>Facility Name</label>
+            <input type="text" id="fac-title" placeholder="Enter facility name">
           </div>
-          <!-- Right Column -->
-          <div class="facility-col2">
-            <div class="form-group"><label>Library</label>
-              <select id="library-status"><option>Open</option><option>On Break</option><option>Close</option></select>
+        </div>
+        <div class="ann-row h-102">
+          <div class="meta-group">
+            <div class="label-input">
+              <label>Open</label>
+              <input type="time" id="fac-open">
             </div>
-             <div class="form-group"><label>Registrar</label>
-               <select id="registrar-status"><option>Open</option><option>On Break</option><option>Close</option></select>
-             </div>
-             
-             <div class="form-group"><label>D.O</label>
-               <select id="do-status"><option>Open</option><option>On Break</option><option>Close</option></select>
-             </div>
+            <div class="label-input">
+              <label>Break Start</label>
+              <input type="time" id="fac-break-start">
+            </div>
+            <div class="label-input">
+              <label>Break End</label>
+              <input type="time" id="fac-break-end">
+            </div>
+            <div class="label-input">
+              <label>Close</label>
+              <input type="time" id="fac-close">
+            </div>
           </div>
+        </div>
+        <div class="ann-row h-5">
+          <button id="fac-add-btn" class="btn-action full">Add</button>
+        </div>
+        <div class="facility-grid-container" id="facility-admin-list">
+          <div id="facility-custom-list-left" class="facility-col1"></div>
+          <div id="facility-custom-list-right" class="facility-col2"></div>
         </div>
         <div class="ann-row actions-container h-10">
           <button id="facility-save-btn" class="btn-save">Save</button>

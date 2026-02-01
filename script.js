@@ -254,6 +254,7 @@ async function saveConfigDocs(payload) {
       if (payload.media !== undefined) await db.collection('config').doc('media').set(payload.media);
       if (payload.officeInfo !== undefined) await db.collection('config').doc('officeInfo').set(payload.officeInfo);
       if (payload.facilityStatus !== undefined) await db.collection('config').doc('facilityStatus').set(payload.facilityStatus);
+      if (payload.facilities !== undefined) await db.collection('config').doc('facilities').set(payload.facilities);
     } catch {}
   }
   await logInfo('config_save', { keys: Object.keys(payload) });
@@ -375,6 +376,7 @@ function hideOverlay() {
 function showPowerOff() {
   const el = document.getElementById('power-overlay');
   if (el) el.style.display = 'block';
+  try { closeAllPopups(); } catch {}
   try { console.log('Power OFF overlay shown'); } catch {}
 }
 
@@ -437,24 +439,24 @@ function showModalAuto(title, html, ms = 5000) {
   clearTimeout(window._modalHideTimer);
   window._modalHideTimer = setTimeout(() => { overlay.style.display = 'none'; }, ms);
 }
-function renderCalendarHtml(anns, evs) {
+function renderCalendarHtml(anns, evs, month, year) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+  const _year = (typeof year === 'number' ? year : now.getFullYear());
+  const _month = (typeof month === 'number' ? month : now.getMonth());
   const monthNames = ["January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ];
-  const firstDay = new Date(year, month, 1).getDay(); // 0 = Sunday
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(_year, _month, 1).getDay(); // 0 = Sunday
+  const daysInMonth = new Date(_year, _month + 1, 0).getDate();
   const checkDate = (dstr, day) => {
     if (!dstr) return false;
     const d = new Date(dstr.replace(/\,/g,''));
-    return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+    return d.getFullYear() === _year && d.getMonth() === _month && d.getDate() === day;
   };
   const inMonth = (dstr) => {
     if (!dstr) return false;
     const d = new Date(dstr.replace(/\,/g,''));
-    return d.getFullYear() === year && d.getMonth() === month;
+    return d.getFullYear() === _year && d.getMonth() === _month;
   };
   const getCellClass = (day) => {
     const hasEvent = (evs || []).some(e => checkDate(e.date, day));
@@ -479,7 +481,7 @@ function renderCalendarHtml(anns, evs) {
     <div class="cal-inner-container" style="display:flex; flex-direction:column; height:100%;">
       <div class="cal-header-row" style="flex:0 0 auto;">
          <div class="legend-item left"><div class="legend-dot dot-event"></div> Event</div>
-         <div class="cal-month-name">${monthNames[month]} ${year}</div>
+         <div class="cal-month-name">${monthNames[_month]} ${_year}</div>
          <div class="legend-item right"><div class="legend-dot dot-announcement"></div> Announcement</div>
       </div>
       <div class="cal-grid" style="flex:1 1 0; min-height:0;">
@@ -814,7 +816,7 @@ function renderAnnouncementsPage(anns, pageIdx, prevIdx) {
   const dir = prevIdx == null ? '0px' : (pageIdx > prevIdx ? '20px' : '-20px');
   const dots = pages.map((_, i) => `<span class="dot ${i===pageIdx?'active':''}" style="width:8px;height:8px;border-radius:50%;background:#000;opacity:${i===pageIdx?1:0.4};"></span>`).join('');
   const items = cur.map(a => `
-    <div class="announcement-item" style="flex:1; min-height:0; display:flex; align-items:center; gap:10px; padding:8px;">
+    <div class="announcement-item" style="flex:0 0 5em; height:5em; min-height:5em; display:flex; align-items:center; gap:10px; padding:8px;">
       <div class="icon">${a.icon || '📢'}</div>
       <div class="text" style="overflow:hidden;">
         <h3>${a.title}</h3>
@@ -825,7 +827,7 @@ function renderAnnouncementsPage(anns, pageIdx, prevIdx) {
   return `
     <div style="display:flex; flex-direction:column; height:100%;">
       <div style="flex:1 1 0; display:flex; flex-direction:column; gap:8px; animation: annSlideIn 240ms ease; will-change: transform, opacity;">
-        ${items || '<div style="flex:1; display:flex; align-items:center; justify-content:center; color:#4a5568;">No schedule</div>'}
+        ${items}
       </div>
       ${pages.length>1 ? `<div class="dots-wrap" style="display:flex; gap:6px; justify-content:center; padding:12px 0; flex:0 0 auto;">${dots}</div>` : ''}
       <style>
@@ -856,6 +858,26 @@ function advanceModalPage(step = 1) {
     showModalAuto('Announcements', html, 600000);
     return true;
   }
+  if (window._modalPager === 'calendar') {
+    if (typeof window._calendarCurrentMonth !== 'number' || typeof window._calendarCurrentYear !== 'number') {
+      const now = new Date();
+      window._calendarCurrentMonth = now.getMonth();
+      window._calendarCurrentYear = now.getFullYear();
+    }
+    let m = window._calendarCurrentMonth;
+    let y = window._calendarCurrentYear;
+    m += step;
+    if (m < 0) { m = 11; y -= 1; }
+    if (m > 11) { m = 0; y += 1; }
+    window._calendarCurrentMonth = m;
+    window._calendarCurrentYear = y;
+    const anns = Array.isArray(window._calendarAnns) ? window._calendarAnns : [];
+    const evs = Array.isArray(window._calendarEvs) ? window._calendarEvs : [];
+    const html = renderCalendarHtml(anns, evs, m, y);
+    showModal('Calendar', html);
+    window._modalPager = 'calendar';
+    return true;
+  }
   if (window._modalPager === 'highlights' && Array.isArray(window._highlightsFlat)) {
     const _pages = getHighlightPages(window._highlightsFlat);
     const totalPages = _pages.length;
@@ -867,6 +889,18 @@ function advanceModalPage(step = 1) {
     window._highlightsPageIndex = next;
     const html = renderHighlightsPage(window._highlightsFlat, next, prev);
     showModalAuto('HIGHLIGHTS', html, 600000);
+    return true;
+  }
+  if (window._modalPager === 'facilities' && Array.isArray(window._facilitiesFlat)) {
+    const totalPages = Math.ceil(window._facilitiesFlat.length / 5);
+    if (totalPages <= 1) return false;
+    const prev = Math.max(0, Math.min(window._facilitiesPageIndex || 0, totalPages - 1));
+    if (step > 0 && prev >= totalPages - 1) return false;
+    if (step < 0 && prev <= 0) return false;
+    const next = prev + step;
+    window._facilitiesPageIndex = next;
+    const html = renderFacilitiesPage(window._facilitiesFlat, next, prev);
+    showModalAuto('FACILITIES', html, 600000);
     return true;
   }
   if (window._modalPager === 'events' && Array.isArray(window._eventsFlat)) {
@@ -1051,6 +1085,36 @@ function showHighlightsPaged(hls, pageIdx = 0, prevIdx = null) {
   window._highlightsPageIndex = pageIdx;
   const html = renderHighlightsPage(window._highlightsFlat, pageIdx, prevIdx);
   showModalAuto('HIGHLIGHTS', html, 600000);
+}
+function renderFacilitiesPage(facs, pageIdx, prevIdx) {
+  const pages = chunk(facs || [], 5);
+  const cur = pages[pageIdx] || [];
+  const dir = prevIdx == null ? '0px' : (pageIdx > prevIdx ? '20px' : '-20px');
+  const dots = pages.map((_, i) => `<span class="dot ${i===pageIdx?'active':''}" style="width:8px;height:8px;border-radius:50%;background:#000;opacity:${i===pageIdx?1:0.4};"></span>`).join('');
+  const items = cur.map(f => `
+    <div class="facility-item" style="flex:0 0 5em; height:5em; min-height:5em; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px; border:1px solid #cbd5e1; border-radius:8px; background:#f9fafb;">
+      <span class="facility-name" style="font-weight:600;">${f.name || f.key}</span>
+      <span class="facility-status ${f.status.class}">${f.status.text}</span>
+    </div>
+  `).join('');
+  return `
+    <div style="display:flex; flex-direction:column; height:100%;">
+      <div style="flex:1 1 0; display:flex; flex-direction:column; gap:8px; animation: facSlideIn 240ms ease; will-change: transform, opacity;">
+        ${items}
+      </div>
+      ${pages.length>1 ? `<div class="dots-wrap" style="display:flex; gap:6px; justify-content:center; padding:12px 0; flex:0 0 auto;">${dots}</div>` : ''}
+      <style>
+        @keyframes facSlideIn { from { transform: translateX(${dir}); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+      </style>
+    </div>
+  `;
+}
+function showFacilitiesPaged(facs, pageIdx = 0, prevIdx = null) {
+  window._modalPager = 'facilities';
+  window._facilitiesFlat = facs || [];
+  window._facilitiesPageIndex = pageIdx;
+  const html = renderFacilitiesPage(window._facilitiesFlat, pageIdx, prevIdx);
+  showModalAuto('FACILITIES', html, 600000);
 }
 function renderAnnListCompact(anns) {
   const items = anns.map(a => `
@@ -1431,9 +1495,16 @@ async function executeBufferedCalendar() {
       return showCombinedSchedulePaged(anns, evs, 0, null);
     }
     if (q.includes('calendar')) {
-      const html = renderCalendarHtml(annsAll, evsAll);
+      const now = new Date();
+      window._calendarCurrentMonth = now.getMonth();
+      window._calendarCurrentYear = now.getFullYear();
+      window._calendarAnns = annsAll;
+      window._calendarEvs = evsAll;
+      const html = renderCalendarHtml(window._calendarAnns, window._calendarEvs, window._calendarCurrentMonth, window._calendarCurrentYear);
       window._busyCalendar = false;
-      return showModal('Calendar', html);
+      showModal('Calendar', html);
+      window._modalPager = 'calendar';
+      return;
     }
     window._busyCalendar = false;
   } catch (e) {
@@ -1550,7 +1621,7 @@ async function handleVoice(text) {
     return showModal('Faculty Status', html);
   }
 
-  if (fuzzyHasAnyKeyword(t, ['library', 'canteen', 'laboratory', 'facility'])) {
+  if (fuzzyHasAnyKeyword(t, ['library', 'canteen', 'laboratory'])) {
     closeAllPopups();
     const off = await fetchConfig('officeInfo') || {};
     const fs = await fetchConfig('facilityStatus') || {};
@@ -1574,6 +1645,42 @@ async function handleVoice(text) {
       <div><b>Free:</b> ${free.join(', ') || 'None'}</div>
       <div><b>Occupied:</b> ${occ.join(', ') || 'None'}</div>
     `);
+  }
+  if (fuzzyHasKeyword(t, 'facility')) {
+    closeAllPopups();
+    showModalNoHeader('<div>Loading Facilities...</div>', 600000);
+    const toMin = (x) => {
+      if (!x || typeof x !== 'string') return null;
+      const m = x.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    };
+    const nowMin = () => new Date().getHours() * 60 + new Date().getMinutes();
+    const getSt = (sch) => {
+      const n = nowMin();
+      const o = toMin(sch && sch.open);
+      const bs = toMin(sch && sch.breakStart);
+      const be = toMin(sch && sch.breakEnd);
+      const c = toMin(sch && sch.close);
+      if (o == null || c == null) return { text: 'CLOSED', class: 'status-closed' };
+      if (n < o || n >= c) return { text: 'CLOSED', class: 'status-closed' };
+      if (bs != null && be != null && n >= bs && n < be) return { text: 'ON BREAK', class: 'status-break-fac' };
+      return { text: 'OPEN', class: 'status-open' };
+    };
+    let facs = [];
+    try {
+      const db = getFirestoreDB();
+      if (db) {
+        const snap = await db.collection('config').doc('facilities').get();
+        const data = snap.exists ? (snap.data() || {}) : {};
+        facs = Object.keys(data).map(k => ({ key: k, name: data[k].name || k, status: getSt((data[k] && data[k].schedule) || {}) }));
+      } else {
+        const data = await fetchConfig('facilities') || {};
+        facs = Object.keys(data).map(k => ({ key: k, name: data[k].name || k, status: getSt((data[k] && data[k].schedule) || {}) }));
+      }
+    } catch {}
+    logInfo('voice_command', { command: 'facilities' });
+    return showFacilitiesPaged(facs, 0, null);
   }
 
   if (t.includes('full announcement') || t.includes('show announcements') || t.includes('announcements list') || fuzzyHasKeyword(t, 'announcement')) {
@@ -1926,29 +2033,40 @@ async function renderDashboard() {
   // 5. Facility Status (3x2 Grid)
   const facContainer = document.getElementById('facility-list');
   if (facContainer) {
-     const getStatus = (val) => {
-        if(!val) return { text: 'CLOSED', class: 'status-closed' };
-        const v = String(val).toLowerCase();
-        if(v.includes('break')) return { text: 'ON BREAK', class: 'status-break-fac' };
-        if(v.includes('open')) return { text: 'OPEN', class: 'status-open' };
-        return { text: 'CLOSED', class: 'status-closed' };
+     const toMin = (t) => {
+       if (!t || typeof t !== 'string') return null;
+       const m = t.match(/^(\d{1,2}):(\d{2})$/);
+       if (!m) return null;
+       const hh = parseInt(m[1], 10), mm = parseInt(m[2], 10);
+       return (hh * 60) + mm;
      };
-     const renderFacilities = (fs) => {
-       const items = [
-         { name: 'Clinic', val: fs.clinic },
-         { name: 'Library', val: fs.library },
-         { name: 'Admin', val: fs.admin },
-         { name: 'Registrar', val: fs.registrar },
-         { name: 'Proware', val: fs.proware },
-         { name: 'D.O', val: fs.do }
-       ];
+     const nowMin = () => {
+       const d = new Date();
+       return d.getHours() * 60 + d.getMinutes();
+     };
+     const getStatusBySchedule = (sch) => {
+       const n = nowMin();
+       const o = toMin(sch && sch.open);
+       const bs = toMin(sch && sch.breakStart);
+       const be = toMin(sch && sch.breakEnd);
+       const c = toMin(sch && sch.close);
+       if (o == null || c == null) return { text: 'CLOSED', class: 'status-closed' };
+       if (n < o || n >= c) return { text: 'CLOSED', class: 'status-closed' };
+       if (bs != null && be != null && n >= bs && n < be) return { text: 'ON BREAK', class: 'status-break-fac' };
+       return { text: 'OPEN', class: 'status-open' };
+     };
+     const renderFacilities = (facMap) => {
+       const entries = Object.keys(facMap || {}).map(k => ({ key: k, ...facMap[k] }));
+       const pinned = entries.filter(e => !!e.pinned).slice(0, 6);
+       const others = entries.filter(e => !e.pinned);
+       const shown = pinned.concat(others).slice(0, 6);
        facContainer.innerHTML = `
          <div class="facility-grid">
-           ${items.map(item => {
-             const st = getStatus(item.val);
+           ${shown.map(item => {
+             const st = getStatusBySchedule(item.schedule || {});
              return `
              <div class="facility-item">
-               <span class="facility-name">${item.name}</span>
+               <span class="facility-name">${item.name || item.key}</span>
                <span class="facility-status ${st.class}">${st.text}</span>
              </div>
              `;
@@ -1958,12 +2076,12 @@ async function renderDashboard() {
      };
      if (db) {
        try {
-         db.collection('config').doc('facilityStatus').onSnapshot(snap => {
+         db.collection('config').doc('facilities').onSnapshot(snap => {
            const fs = snap.exists ? (snap.data() || {}) : {};
            renderFacilities(fs);
          });
        } catch {
-         const fs = await fetchConfig('facilityStatus') || {};
+         const fs = await fetchConfig('facilities') || {};
          renderFacilities(fs);
        }
      }
@@ -2039,21 +2157,55 @@ async function renderAdmin() {
   if (mediaType) mediaType.disabled = true;
   if (mediaValue) mediaValue.disabled = true;
 
-  // Facility Status
-  const clinicStatus = document.getElementById('clinic-status');
-  const libraryStatus = document.getElementById('library-status');
-  const adminStatus = document.getElementById('admin-status');
-  const registrarStatus = document.getElementById('registrar-status');
-  const prowareStatus = document.getElementById('proware-status');
-  const doStatus = document.getElementById('do-status');
-
-  const fsCfg = await fetchConfig('facilityStatus');
-  if (clinicStatus) clinicStatus.value = (fsCfg && fsCfg.clinic) || 'Open';
-  if (libraryStatus) libraryStatus.value = (fsCfg && fsCfg.library) || 'Open';
-  if (adminStatus) adminStatus.value = (fsCfg && fsCfg.admin) || 'Open';
-  if (registrarStatus) registrarStatus.value = (fsCfg && fsCfg.registrar) || 'Open';
-  if (prowareStatus) prowareStatus.value = (fsCfg && fsCfg.proware) || 'Open';
-  if (doStatus) doStatus.value = (fsCfg && fsCfg.do) || 'Open';
+  // Facilities Admin List
+  const leftEl = document.getElementById('facility-custom-list-left');
+  const rightEl = document.getElementById('facility-custom-list-right');
+  if (leftEl && rightEl) {
+    const toMin = (t) => {
+      if (!t || typeof t !== 'string') return null;
+      const m = t.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    };
+    const nowMin = () => new Date().getHours() * 60 + new Date().getMinutes();
+    const getStatusBySchedule = (sch) => {
+      const n = nowMin();
+      const o = toMin(sch && sch.open);
+      const bs = toMin(sch && sch.breakStart);
+      const be = toMin(sch && sch.breakEnd);
+      const c = toMin(sch && sch.close);
+      if (o == null || c == null) return { text: 'CLOSED', class: 'status-closed' };
+      if (n < o || n >= c) return { text: 'CLOSED', class: 'status-closed' };
+      if (bs != null && be != null && n >= bs && n < be) return { text: 'ON BREAK', class: 'status-break-fac' };
+      return { text: 'OPEN', class: 'status-open' };
+    };
+    const facDoc = await fetchConfig('facilities') || {};
+    Object.keys(facDoc).forEach(k => {
+      const f = facDoc[k] || {};
+      const sch = f.schedule || {};
+      const st = getStatusBySchedule(sch);
+      const div = document.createElement('div');
+      div.className = 'form-group';
+      div.setAttribute('data-fac-key', k);
+      div.dataset.name = f.name || k;
+      div.dataset.open = sch.open || '';
+      div.dataset.breakStart = sch.breakStart || '';
+      div.dataset.breakEnd = sch.breakEnd || '';
+      div.dataset.close = sch.close || '';
+      div.dataset.pinned = f.pinned ? 'true' : 'false';
+      div.innerHTML = `
+        <label>${f.name || k}</label>
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <span class="facility-status ${st.class}">${st.text}</span>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-save" data-action="pin-fac" data-key="${k}" style="${f.pinned ? 'background:#f59e0b;' : ''}">${f.pinned ? 'Unpin' : 'Pin'}</button>
+            <button class="btn-save" data-action="remove-fac" data-key="${k}" style="background:#dc3545;">Remove</button>
+          </div>
+        </div>`;
+      const target = (leftEl.childElementCount <= rightEl.childElementCount) ? leftEl : rightEl;
+      target.appendChild(div);
+    });
+  }
 
 
   // Lists
@@ -2642,22 +2794,108 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('room-name').value = '';
     });
 
-    // Facility Save
+    const facAddBtn = document.getElementById('fac-add-btn');
+    if (facAddBtn) facAddBtn.addEventListener('click', () => {
+      const name = (document.getElementById('fac-title') && document.getElementById('fac-title').value.trim()) || '';
+      const open = (document.getElementById('fac-open') && document.getElementById('fac-open').value) || '';
+      const breakStart = (document.getElementById('fac-break-start') && document.getElementById('fac-break-start').value) || '';
+      const breakEnd = (document.getElementById('fac-break-end') && document.getElementById('fac-break-end').value) || '';
+      const close = (document.getElementById('fac-close') && document.getElementById('fac-close').value) || '';
+      if (!name || !open || !close) return;
+      const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 32) || 'facility';
+      const lEl = document.getElementById('facility-custom-list-left');
+      const rEl = document.getElementById('facility-custom-list-right');
+      if (!lEl || !rEl) return;
+      if (document.querySelector(`#facility-admin-list [data-fac-key="${key}"]`)) return;
+      const toMin = (t) => {
+        if (!t || typeof t !== 'string') return null;
+        const m = t.match(/^(\d{1,2}):(\d{2})$/);
+        if (!m) return null;
+        return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+      };
+      const nowMin = () => new Date().getHours() * 60 + new Date().getMinutes();
+      const getStatusBySchedule = (sch) => {
+        const n = nowMin();
+        const o = toMin(sch && sch.open);
+        const bs = toMin(sch && sch.breakStart);
+        const be = toMin(sch && sch.breakEnd);
+        const c = toMin(sch && sch.close);
+        if (o == null || c == null) return { text: 'CLOSED', class: 'status-closed' };
+        if (n < o || n >= c) return { text: 'CLOSED', class: 'status-closed' };
+        if (bs != null && be != null && n >= bs && n < be) return { text: 'ON BREAK', class: 'status-break-fac' };
+        return { text: 'OPEN', class: 'status-open' };
+      };
+      const sch = { open, breakStart, breakEnd, close };
+      const st = getStatusBySchedule(sch);
+      const div = document.createElement('div');
+      div.className = 'form-group';
+      div.setAttribute('data-fac-key', key);
+      div.dataset.name = name;
+      div.dataset.open = open;
+      div.dataset.breakStart = breakStart;
+      div.dataset.breakEnd = breakEnd;
+      div.dataset.close = close;
+      div.dataset.pinned = 'false';
+      div.innerHTML = `
+        <label>${name}</label>
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <span class="facility-status ${st.class}">${st.text}</span>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-save" data-action="pin-fac" data-key="${key}">Pin</button>
+            <button class="btn-save" data-action="remove-fac" data-key="${key}" style="background:#dc3545;">Remove</button>
+          </div>
+        </div>`;
+      const target = (lEl.childElementCount <= rEl.childElementCount) ? lEl : rEl;
+      target.appendChild(div);
+      const t = document.getElementById('fac-title'); if (t) t.value = '';
+      const o1 = document.getElementById('fac-open'); if (o1) o1.value = '';
+      const bs = document.getElementById('fac-break-start'); if (bs) bs.value = '';
+      const be = document.getElementById('fac-break-end'); if (be) be.value = '';
+      const c1 = document.getElementById('fac-close'); if (c1) c1.value = '';
+      window._pendingFacilities = window._pendingFacilities || { adds: [], deletes: new Set(), pins: new Set() };
+      window._pendingFacilities.adds.push({ key, name, schedule: sch });
+    });
+    const facList = document.getElementById('facility-admin-list');
+    if (facList) facList.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const act = btn.dataset.action;
+      const key = btn.dataset.key;
+      if (act === 'remove-fac') {
+        const grp = facList.querySelector(`[data-fac-key="${key}"]`);
+        if (grp) grp.remove();
+        window._pendingFacilities = window._pendingFacilities || { adds: [], deletes: new Set(), pins: new Set() };
+        window._pendingFacilities.deletes.add(key);
+      } else if (act === 'pin-fac') {
+        const grp = facList.querySelector(`[data-fac-key="${key}"]`);
+        if (!grp) return;
+        const isPinned = grp.dataset.pinned === 'true';
+        if (!isPinned) {
+          const countPinned = facList.querySelectorAll('.form-group[data-fac-key][data-pinned="true"]').length;
+          if (countPinned >= 6) { alert('Pin limit reached (6)'); return; }
+        }
+        grp.dataset.pinned = isPinned ? 'false' : 'true';
+        btn.textContent = isPinned ? 'Pin' : 'Unpin';
+        btn.style.background = isPinned ? '' : '#f59e0b';
+      }
+    });
     const facilitySaveBtn = document.getElementById('facility-save-btn');
     if (facilitySaveBtn) facilitySaveBtn.addEventListener('click', async () => {
       try {
-        const newData = {
-          facilityStatus: {
-            clinic: document.getElementById('clinic-status').value,
-            library: document.getElementById('library-status').value,
-            admin: document.getElementById('admin-status').value,
-            registrar: document.getElementById('registrar-status').value,
-            proware: document.getElementById('proware-status').value,
-            do: document.getElementById('do-status').value
-          }
-        };
+        const obj = {};
+        document.querySelectorAll('#facility-admin-list .form-group[data-fac-key]').forEach(group => {
+          const k = group.getAttribute('data-fac-key');
+          const name = group.dataset.name || k;
+          const open = group.dataset.open || '';
+          const breakStart = group.dataset.breakStart || '';
+          const breakEnd = group.dataset.breakEnd || '';
+          const close = group.dataset.close || '';
+          const pinned = group.dataset.pinned === 'true';
+          obj[k] = { name, schedule: { open, breakStart, breakEnd, close }, pinned };
+        });
+        const newData = { facilities: obj };
         await saveConfigDocs(newData);
-        alert('Facility Status Saved');
+        alert('Facilities Saved');
       } catch (e) {
         alert('Invalid data');
       }
