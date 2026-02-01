@@ -1171,7 +1171,7 @@ function renderAnnListCompact(anns) {
       <div class="text" style="overflow:hidden; display:flex; flex-direction:column;">
         <h3 style="margin:0;">${a.title}</h3>
         ${a.description ? `<p style="margin:2px 0 0;">${a.description}</p>` : ''}
-        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">Expires: ${a.time || ''} ${a.time ? '•' : ''} ${a.date || ''}</p>
+        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">Expires: ${(a.endTime || a.time) || ''} ${((a.endTime || a.time) ? '•' : '')} ${(a.endDate || a.date) || ''}</p>
       </div>
     </div>
   `).join('');
@@ -1194,7 +1194,7 @@ function renderAnnItemCompact(a) {
       <div class="text" style="overflow:hidden; display:flex; flex-direction:column;">
         <h3 style="margin:0;">${a.title}</h3>
         ${a.description ? `<p style="margin:2px 0 0;">${a.description}</p>` : ''}
-        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">Expires: ${a.time || ''} ${a.time ? '•' : ''} ${a.date || ''}</p>
+        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">Expires: ${(a.endTime || a.time) || ''} ${((a.endTime || a.time) ? '•' : '')} ${(a.endDate || a.date) || ''}</p>
       </div>
     </div>
   `;
@@ -1322,7 +1322,7 @@ function _parseDateSafe(dstr) {
   } catch { return null; }
 }
 function _deriveTags(entry) {
-  const d = _parseDateSafe(entry && entry.date);
+  const d = _parseDateSafe(entry && (entry.endDate || entry.date));
   if (!d || isNaN(d.getTime())) return { year:null, monthIndex:null, monthName:null, date:null, weekdayIndex:null, weekdayName:null };
   const monthNames = ["january","february","march","april","may","june","july","august","september","october","november","december"];
   const weekdayNames = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
@@ -1403,7 +1403,7 @@ function filterByTags(arr, tags) {
   if (!Array.isArray(arr) || !arr.length) return [];
   if (tags.range) {
     return arr.filter(x => {
-      const d = _parseDateSafe(x.date);
+      const d = _parseDateSafe(x.endDate || x.date);
       return d && d >= tags.range.from && d <= tags.range.to;
     });
   }
@@ -1787,7 +1787,7 @@ async function handleVoice(text) {
     const opts = { year: 'numeric', month: 'short', day: 'numeric' };
     const titleDate = calRange.from.toLocaleDateString('en-US', opts);
     if (fuzzyHasKeyword(t, 'schedule')) {
-      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${(evs.length?evs:[]).map(e => `<div>${e.title} — ${e.date}</div>`).join('') || '<div>No events</div>'}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — Expires: ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${(evs.length?evs:[]).map(e => `<div>${e.title} — ${e.date}</div>`).join('') || '<div>No events</div>'}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — Expires: ${(a.endTime || a.time) || ''} • ${(a.endDate || a.date) || ''}</div>`).join('') || '<div>No announcements</div>'}</div>`;
       logInfo('voice_command', { command: 'calendar_schedule' });
       return showModal(`Calendar — ${titleDate}`, html);
     }
@@ -1797,7 +1797,7 @@ async function handleVoice(text) {
       return showModal(`Calendar — ${titleDate}`, html);
     }
     if (fuzzyHasAnyKeyword(t, ['announcement','announcements'])) {
-      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — Expires: ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — Expires: ${(a.endTime || a.time) || ''} • ${(a.endDate || a.date) || ''}</div>`).join('') || '<div>No announcements</div>'}</div>`;
       logInfo('voice_command', { command: 'calendar_announcements_on' });
       return showModal(`Calendar — ${titleDate}`, html);
     }
@@ -2583,7 +2583,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (calHead) calHead.addEventListener('click', async () => {
       const anns = await fetchAnnouncements(200);
       const evs = await fetchEvents(200);
-      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${evs.map(e => `<div>${e.title} — ${e.date}</div>`).join('')}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${anns.map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('')}</div>`;
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${evs.map(e => `<div>${e.title} — ${e.date}</div>`).join('')}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${anns.map(a => `<div>${a.title} — ${(a.endTime || a.time) || ''} • ${(a.endDate || a.date) || ''}</div>`).join('')}</div>`;
       showModal('Calendar & Highlights', html);
     });
   }
