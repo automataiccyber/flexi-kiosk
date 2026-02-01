@@ -60,23 +60,32 @@ async function logInfo(type, details) {
 }
 
 
-async function fetchAnnouncements(limitCount = 3) {
+async function fetchAnnouncements(limitCount = 3, activeOnly = true) {
   try {
     const db = getFirestoreDB();
     if (!db) throw new Error('no-db');
     const snap = await db.collection('announcements').orderBy('createdAt', 'desc').limit(limitCount).get();
     const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     
-    // Process announcements: Calculate timestamp, filter expired, and sort
+    // Process announcements: Calculate start/end timestamps, optionally filter to active range, and sort
     const nowTs = Date.now();
-    const processed = rows.map(a => {
-        const dstr = (a.date || '').replace(/\,/g,'');
-        const tstr = a.time ? ('T' + a.time) : '';
-        const dt = new Date(dstr + (tstr || 'T00:00:00'));
-        return { ...a, _ts: dt.getTime() || 0, pinned: !!a.pinned };
-    })
-    .filter(a => a._ts > nowTs)
-    .sort((x,y) => (y.pinned - x.pinned) || (x._ts - y._ts));
+    const processedAll = rows.map(a => {
+        const endDateStr = (a.endDate || a.date || '').replace(/\,/g, '');
+        const endTimeStr = a.endTime || a.time || '';
+        const startDateStr = (a.startDate || '').replace(/\,/g, '');
+        const startTimeStr = a.startTime || '';
+
+        const startTs = startDateStr
+          ? new Date(startDateStr + (startTimeStr ? ('T' + startTimeStr) : 'T00:00:00')).getTime() || 0
+          : (new Date(a.createdAt || 0).getTime() || 0);
+
+        const endTs = new Date(endDateStr + (endTimeStr ? ('T' + endTimeStr) : 'T23:59:59')).getTime() || 0;
+
+        return { ...a, _startTs: startTs, _endTs: endTs, pinned: !!a.pinned };
+    });
+
+    const processed = (activeOnly ? processedAll.filter(a => a._startTs <= nowTs && nowTs <= a._endTs) : processedAll)
+      .sort((x,y) => (y.pinned - x.pinned) || (x._endTs - y._endTs));
 
     if (!processed || processed.length === 0) throw new Error('empty');
     return processed;
@@ -378,12 +387,47 @@ function showPowerOff() {
   if (el) el.style.display = 'block';
   try { closeAllPopups(); } catch {}
   try { console.log('Power OFF overlay shown'); } catch {}
+  window._screenDimmed = true;
 }
 
 function hidePowerOff() {
   const el = document.getElementById('power-overlay');
   if (el) el.style.display = 'none';
   try { console.log('Power OFF overlay hidden'); } catch {}
+  const wasDimmed = !!window._screenDimmed;
+  window._screenDimmed = false;
+  if (wasDimmed) {
+    try { triggerGreetingOnWake(); } catch {}
+  }
+}
+
+function triggerGreetingOnWake() {
+  const isDashboard = !!document.getElementById('dashboard-view');
+  if (!isDashboard) return;
+  const msg = getGreetingMessage();
+  speakGreeting(msg);
+}
+
+function getGreetingMessage() {
+  const h = new Date().getHours();
+  const tod = (h < 12) ? 'morning' : (h < 18) ? 'afternoon' : 'evening';
+  return `Good ${tod}. Welcome to Flexi Kiosk.`;
+}
+
+function speakGreeting(text) {
+  try {
+    const synth = window.speechSynthesis;
+    if (!synth || !text) return;
+    const utter = new SpeechSynthesisUtterance(text);
+    const voices = synth.getVoices() || [];
+    const enVoice = voices.find(v => /en(-|_)?/i.test(v.lang));
+    if (enVoice) utter.voice = enVoice;
+    utter.rate = 1.0;
+    utter.pitch = 1.0;
+    utter.volume = 1.0;
+    synth.cancel();
+    synth.speak(utter);
+  } catch {}
 }
 
 function showModal(title, html) {
@@ -1835,12 +1879,11 @@ async function renderDashboard() {
       const updateAnnouncements = () => {
         const nowTs = Date.now();
         
-        // Removed auto-delete logic per user request. 
-        // Announcements are kept in DB but filtered from dashboard.
+        // Announcements are kept in DB but shown only within active range (start <= now <= end).
         
         const anns = cachedAnns
-          .filter(a => a._ts > nowTs)
-          .sort((x,y) => (y.pinned - x.pinned) || (x._ts - y._ts))
+          .filter(a => a._startTs <= nowTs && nowTs <= a._endTs)
+          .sort((x,y) => (y.pinned - x.pinned) || (x._endTs - y._endTs))
           .slice(0, 50);
 
         annContainer.innerHTML = anns.map(a => `
@@ -1857,15 +1900,15 @@ async function renderDashboard() {
       db.collection('announcements').orderBy('createdAt','desc').limit(50).onSnapshot((snap) => {
         const annsRaw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const parseAnn = (a) => {
-          const dstr = (a.date || '').replace(/\,/g,'');
-          // Use ISO separator T for more robust parsing if time exists, otherwise midnight
-          const tstr = a.time ? ('T' + a.time) : ''; 
-          // If no time, we might assume end of day? User requirement says "date and time".
-          // If time is missing, let's treat it as valid for the whole day (or invalid if strictly required).
-          // Assuming midnight local time if no time provided, which means it expires at start of day? 
-          // Let's stick to existing behavior: Date + Time string.
-          const dt = new Date(dstr + (tstr || 'T00:00:00'));
-          return { ...a, _ts: dt.getTime() || 0, pinned: !!a.pinned };
+          const endDateStr = (a.endDate || a.date || '').replace(/\,/g, '');
+          const endTimeStr = a.endTime || a.time || '';
+          const startDateStr = (a.startDate || '').replace(/\,/g, '');
+          const startTimeStr = a.startTime || '';
+          const startTs = startDateStr
+            ? new Date(startDateStr + (startTimeStr ? ('T' + startTimeStr) : 'T00:00:00')).getTime() || 0
+            : (new Date(a.createdAt || 0).getTime() || 0);
+          const endTs = new Date(endDateStr + (endTimeStr ? ('T' + endTimeStr) : 'T23:59:59')).getTime() || 0;
+          return { ...a, _startTs: startTs, _endTs: endTs, pinned: !!a.pinned };
         };
         cachedAnns = annsRaw.map(parseAnn);
         updateAnnouncements();
@@ -2106,9 +2149,17 @@ async function renderDashboard() {
 // --- Admin Render Logic ---
 function renderAdminAnnouncementsList(list) {
   return list.map(a => {
-    const dstr = (a.date || '').replace(/\,/g,'');
-    const dt = new Date(dstr + ' ' + (a.time || ''));
-    const isExpired = (dt.getTime() || 0) < Date.now();
+    const nowTs = Date.now();
+    const endDateStr = (a.endDate || a.date || '').replace(/\,/g,'');
+    const endTimeStr = a.endTime || a.time || '';
+    const startDateStr = (a.startDate || '').replace(/\,/g,'');
+    const startTimeStr = a.startTime || '';
+    const startTs = startDateStr
+      ? new Date(startDateStr + (startTimeStr ? ('T' + startTimeStr) : 'T00:00:00')).getTime() || 0
+      : (new Date(a.createdAt || 0).getTime() || 0);
+    const endTs = new Date(endDateStr + (endTimeStr ? ('T' + endTimeStr) : 'T23:59:59')).getTime() || 0;
+    const isInRange = startTs <= nowTs && nowTs <= endTs;
+    const isExpired = !isInRange;
     
     return `
     <div class="announcement-item-admin" style="${isExpired ? 'opacity: 0.6; background: #f1f5f9;' : ''}">
@@ -2116,7 +2167,7 @@ function renderAdminAnnouncementsList(list) {
        <div class="text">
           <h3>${a.title} ${isExpired ? '<span style="color:red; font-size:0.8rem; border:1px solid red; border-radius:4px; padding:0 4px;">EXPIRED</span>' : ''}</h3>
           ${a.description ? `<p>${a.description}</p>` : ''}
-          <p style="font-size:0.9rem; color:#334155;">Expires: ${a.time} • ${a.date}</p>
+          <p style="font-size:0.9rem; color:#334155;">Expires: ${endTimeStr} • ${endDateStr}</p>
        </div>
        <div class="admin-actions">
          <button class="btn-action ${a.pinned ? 'pinned' : ''}" data-action="pin" data-id="${a.id}" data-pinned="${!!a.pinned}">${a.pinned ? 'Unpin' : 'Pin'}</button>
@@ -2253,7 +2304,7 @@ async function renderAdmin() {
   }
   const adminList = document.getElementById('announcements-admin-list');
   if (adminList) {
-    const allAnns = await fetchAnnouncements(50);
+    const allAnns = await fetchAnnouncements(50, false);
     adminList.innerHTML = renderAdminAnnouncementsList(allAnns);
   }
   
@@ -2547,7 +2598,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isPendingId = (id) => typeof id === 'string' && id.startsWith('pending:');
 
     const refreshAnnouncementsAdminList = async () => {
-      const base = await fetchAnnouncements(50);
+      const base = await fetchAnnouncements(50, false);
       const filtered = base.map(a => {
         if (window._pendingAnns.deletes.has(a.id)) return null;
         const pinned = window._pendingAnns.pins.has(a.id) ? !!window._pendingAnns.pins.get(a.id) : !!a.pinned;
@@ -2630,15 +2681,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (annAddBtn) annAddBtn.addEventListener('click', async () => {
       const title = document.getElementById('ann-title').value.trim();
       const desc = (document.getElementById('ann-desc') && document.getElementById('ann-desc').value.trim()) || '';
+      const startDate = (document.getElementById('ann-start-date') && document.getElementById('ann-start-date').value.trim()) || '';
+      const startTime = (document.getElementById('ann-start-time') && document.getElementById('ann-start-time').value.trim()) || '';
       const date = document.getElementById('ann-date').value.trim();
       const time = document.getElementById('ann-time').value.trim();
       const icon = document.getElementById('ann-icon').value;
-      if (!title || !date || !time) return;
-      const doc = { title, description: desc, date, time, icon, createdAt: new Date().toISOString(), pinned: false };
+      if (!title || !startDate || !startTime || !date || !time) return;
+      const doc = { title, description: desc, startDate, startTime, date, time, icon, createdAt: new Date().toISOString(), pinned: false };
       window._pendingAnns.adds.push(doc);
       await refreshAnnouncementsAdminList();
       document.getElementById('ann-title').value = '';
       if(document.getElementById('ann-desc')) document.getElementById('ann-desc').value = '';
+      if(document.getElementById('ann-start-date')) document.getElementById('ann-start-date').value = '';
+      if(document.getElementById('ann-start-time')) document.getElementById('ann-start-time').value = '';
       document.getElementById('ann-date').value = '';
       document.getElementById('ann-time').value = '';
     });
