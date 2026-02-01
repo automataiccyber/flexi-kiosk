@@ -1127,7 +1127,7 @@ function renderAnnListCompact(anns) {
       <div class="text" style="overflow:hidden; display:flex; flex-direction:column;">
         <h3 style="margin:0;">${a.title}</h3>
         ${a.description ? `<p style="margin:2px 0 0;">${a.description}</p>` : ''}
-        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">Expires: ${a.time || ''} ${a.time ? '•' : ''} ${a.date || ''}</p>
+        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">Expires: ${(a.endTime || a.time) || ''} ${((a.endTime || a.time) ? '•' : '')} ${(a.endDate || a.date) || ''}</p>
       </div>
     </div>
   `).join('');
@@ -1150,7 +1150,7 @@ function renderAnnItemCompact(a) {
       <div class="text" style="overflow:hidden; display:flex; flex-direction:column;">
         <h3 style="margin:0;">${a.title}</h3>
         ${a.description ? `<p style="margin:2px 0 0;">${a.description}</p>` : ''}
-        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">Expires: ${a.time || ''} ${a.time ? '•' : ''} ${a.date || ''}</p>
+        <p style="font-size:0.9rem; color:#334155; margin-top:auto;">Expires: ${(a.endTime || a.time) || ''} ${((a.endTime || a.time) ? '•' : '')} ${(a.endDate || a.date) || ''}</p>
       </div>
     </div>
   `;
@@ -1278,7 +1278,7 @@ function _parseDateSafe(dstr) {
   } catch { return null; }
 }
 function _deriveTags(entry) {
-  const d = _parseDateSafe(entry && entry.date);
+  const d = _parseDateSafe(entry && (entry.endDate || entry.date));
   if (!d || isNaN(d.getTime())) return { year:null, monthIndex:null, monthName:null, date:null, weekdayIndex:null, weekdayName:null };
   const monthNames = ["january","february","march","april","may","june","july","august","september","october","november","december"];
   const weekdayNames = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
@@ -1359,7 +1359,7 @@ function filterByTags(arr, tags) {
   if (!Array.isArray(arr) || !arr.length) return [];
   if (tags.range) {
     return arr.filter(x => {
-      const d = _parseDateSafe(x.date);
+      const d = _parseDateSafe(x.endDate || x.date);
       return d && d >= tags.range.from && d <= tags.range.to;
     });
   }
@@ -1743,7 +1743,7 @@ async function handleVoice(text) {
     const opts = { year: 'numeric', month: 'short', day: 'numeric' };
     const titleDate = calRange.from.toLocaleDateString('en-US', opts);
     if (fuzzyHasKeyword(t, 'schedule')) {
-      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${(evs.length?evs:[]).map(e => `<div>${e.title} — ${e.date}</div>`).join('') || '<div>No events</div>'}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — Expires: ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${(evs.length?evs:[]).map(e => `<div>${e.title} — ${e.date}</div>`).join('') || '<div>No events</div>'}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — Expires: ${(a.endTime || a.time) || ''} • ${(a.endDate || a.date) || ''}</div>`).join('') || '<div>No announcements</div>'}</div>`;
       logInfo('voice_command', { command: 'calendar_schedule' });
       return showModal(`Calendar — ${titleDate}`, html);
     }
@@ -1753,7 +1753,7 @@ async function handleVoice(text) {
       return showModal(`Calendar — ${titleDate}`, html);
     }
     if (fuzzyHasAnyKeyword(t, ['announcement','announcements'])) {
-      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — Expires: ${a.time} • ${a.date}</div>`).join('') || '<div>No announcements</div>'}</div>`;
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Announcements</div>${(anns.length?anns:[]).map(a => `<div>${a.title} — Expires: ${(a.endTime || a.time) || ''} • ${(a.endDate || a.date) || ''}</div>`).join('') || '<div>No announcements</div>'}</div>`;
       logInfo('voice_command', { command: 'calendar_announcements_on' });
       return showModal(`Calendar — ${titleDate}`, html);
     }
@@ -1839,7 +1839,11 @@ async function renderDashboard() {
         // Announcements are kept in DB but filtered from dashboard.
         
         const anns = cachedAnns
-          .filter(a => a._ts > nowTs)
+          .filter(a => {
+            const startOk = (a._startTs == null) ? true : (nowTs >= a._startTs);
+            const endOk = (a._ts == null) ? true : (nowTs <= a._ts);
+            return startOk && endOk;
+          })
           .sort((x,y) => (y.pinned - x.pinned) || (x._ts - y._ts))
           .slice(0, 50);
 
@@ -1857,15 +1861,18 @@ async function renderDashboard() {
       db.collection('announcements').orderBy('createdAt','desc').limit(50).onSnapshot((snap) => {
         const annsRaw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         const parseAnn = (a) => {
-          const dstr = (a.date || '').replace(/\,/g,'');
+          const sstr = (a.startDate || '').replace(/\,/g,'');
+          const estr = (a.endDate || a.date || '').replace(/\,/g,'');
           // Use ISO separator T for more robust parsing if time exists, otherwise midnight
-          const tstr = a.time ? ('T' + a.time) : ''; 
+          const st = a.startTime ? ('T' + a.startTime) : ''; 
+          const et = (a.endTime || a.time) ? ('T' + (a.endTime || a.time)) : ''; 
           // If no time, we might assume end of day? User requirement says "date and time".
           // If time is missing, let's treat it as valid for the whole day (or invalid if strictly required).
           // Assuming midnight local time if no time provided, which means it expires at start of day? 
           // Let's stick to existing behavior: Date + Time string.
-          const dt = new Date(dstr + (tstr || 'T00:00:00'));
-          return { ...a, _ts: dt.getTime() || 0, pinned: !!a.pinned };
+          const sdt = new Date(sstr + (st || 'T00:00:00'));
+          const edt = new Date(estr + (et || 'T00:00:00'));
+          return { ...a, _startTs: sdt.getTime() || null, _ts: edt.getTime() || null, pinned: !!a.pinned };
         };
         cachedAnns = annsRaw.map(parseAnn);
         updateAnnouncements();
@@ -2532,7 +2539,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (calHead) calHead.addEventListener('click', async () => {
       const anns = await fetchAnnouncements(200);
       const evs = await fetchEvents(200);
-      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${evs.map(e => `<div>${e.title} — ${e.date}</div>`).join('')}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${anns.map(a => `<div>${a.title} — ${a.time} • ${a.date}</div>`).join('')}</div>`;
+      const html = `<div><div style="font-weight:bold; margin-bottom:6px;">Events</div>${evs.map(e => `<div>${e.title} — ${e.date}</div>`).join('')}<div style="font-weight:bold; margin:10px 0 6px;">Announcements</div>${anns.map(a => `<div>${a.title} — ${(a.endTime || a.time) || ''} • ${(a.endDate || a.date) || ''}</div>`).join('')}</div>`;
       showModal('Calendar & Highlights', html);
     });
   }
@@ -2630,15 +2637,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (annAddBtn) annAddBtn.addEventListener('click', async () => {
       const title = document.getElementById('ann-title').value.trim();
       const desc = (document.getElementById('ann-desc') && document.getElementById('ann-desc').value.trim()) || '';
+      const startDate = (document.getElementById('ann-start-date') && document.getElementById('ann-start-date').value.trim()) || '';
+      const startTime = (document.getElementById('ann-start-time') && document.getElementById('ann-start-time').value.trim()) || '';
       const date = document.getElementById('ann-date').value.trim();
       const time = document.getElementById('ann-time').value.trim();
       const icon = document.getElementById('ann-icon').value;
-      if (!title || !date || !time) return;
-      const doc = { title, description: desc, date, time, icon, createdAt: new Date().toISOString(), pinned: false };
+      if (!title || !startDate || !startTime || !date || !time) return;
+      const doc = { 
+        title, 
+        description: desc, 
+        startDate, 
+        startTime, 
+        endDate: date, 
+        endTime: time, 
+        date, 
+        time, 
+        icon, 
+        createdAt: new Date().toISOString(), 
+        pinned: false 
+      };
       window._pendingAnns.adds.push(doc);
       await refreshAnnouncementsAdminList();
       document.getElementById('ann-title').value = '';
       if(document.getElementById('ann-desc')) document.getElementById('ann-desc').value = '';
+      if(document.getElementById('ann-start-date')) document.getElementById('ann-start-date').value = '';
+      if(document.getElementById('ann-start-time')) document.getElementById('ann-start-time').value = '';
       document.getElementById('ann-date').value = '';
       document.getElementById('ann-time').value = '';
     });
