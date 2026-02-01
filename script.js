@@ -481,7 +481,11 @@ function renderCalendarHtml(anns, evs, month, year) {
     <div class="cal-inner-container" style="display:flex; flex-direction:column; height:100%;">
       <div class="cal-header-row" style="flex:0 0 auto;">
          <div class="legend-item left"><div class="legend-dot dot-event"></div> Event</div>
-         <div class="cal-month-name">${monthNames[_month]} ${_year}</div>
+         <div class="cal-month-nav" style="display:flex; align-items:center; gap:12px;">
+           <span class="cal-nav cal-prev" style="font-size:1.2rem;">◀</span>
+           <div class="cal-month-name">${monthNames[_month]} ${_year}</div>
+           <span class="cal-nav cal-next" style="font-size:1.2rem;">▶</span>
+         </div>
          <div class="legend-item right"><div class="legend-dot dot-announcement"></div> Announcement</div>
       </div>
       <div class="cal-grid" style="flex:1 1 0; min-height:0;">
@@ -1927,7 +1931,11 @@ async function renderDashboard() {
           <div class="cal-inner-container">
             <div class="cal-header-row">
                <div class="legend-item left"><div class="legend-dot dot-event"></div> Event</div>
-               <div class="cal-month-name">${monthNames[month]} ${year}</div>
+               <div class="cal-month-nav" style="display:flex; align-items:center; gap:12px;">
+                 <span class="cal-nav cal-prev" style="font-size:1.2rem;">◀</span>
+                 <div class="cal-month-name">${monthNames[month]} ${year}</div>
+                 <span class="cal-nav cal-next" style="font-size:1.2rem;">▶</span>
+               </div>
                <div class="legend-item right"><div class="legend-dot dot-announcement"></div> Announcement</div>
             </div>
             <div class="cal-grid">
