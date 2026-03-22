@@ -25,7 +25,8 @@ Flexi Kiosk is a comprehensive web-based kiosk solution designed for educational
 
 | Dashboard | Admin Portal |
 | :---: | :---: |
-| ![Dashboard Screenshot](https://via.placeholder.com/800x450?text=Dashboard+Screenshot) | ![Admin Portal Screenshot](https://via.placeholder.com/800x450?text=Admin+Portal+Screenshot) |
+| ![Dashboard Screenshot](<img width="766" height="918" alt="image" src="https://github.com/user-attachments/assets/ae751986-0b9d-4a00-ade1-7ad3e30f827c" />
+) | ![Admin Portal Screenshot](https://via.placeholder.com/800x450?text=Admin+Portal+Screenshot) |
 
 ---
 
